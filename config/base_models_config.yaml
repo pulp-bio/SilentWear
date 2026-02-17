@@ -1,0 +1,49 @@
+# SilentWear base configuration
+# Train either subject-specific models (per-subject) or a single pooled model (multi-subject)
+# Select between "global" (all sessions pooled) experiments or "inter-session" models
+
+data:
+# Root folder containing: raw/, processed/, wins_and_feats/ 
+  data_directory: "/baltic/users/ml_datasets/iis_bio_internal_datasets/2026_spacone_speech_classification_hmi"
+  # Folder where you wan to save the models. 
+  models_main_directory: "/scratch2/gspacone/sensors_2026_paper_results_neworder"
+  # Which subjects to include.
+  # - Use a ingle subject id: e.g. "S01", "S02", "S03", "S04" for subject-specific models
+  # - Subject-agnostic models use: [S01, S02, S03, S04]
+  subject_id: "S01"         
+
+paths:
+  raw: "raw"
+  processed: "processed_final"
+  win_and_feats : "wins_and_feats_final"
+  models: "models"
+
+# Select which condition(s) to use.
+# - silent: only silent condition
+# - vocalized: only vocalized condition
+# - voc_and_silent: use both silent + vocalized data
+
+condition: "vocalized"        
+
+window:
+  # Window size in seconds.
+  window_size_s: 0.8
+
+# Insert which channel order to consider. See pitcute description for more details. 
+channel_order: [0, 1, 2, 5, 3, 4, 7, 6, 8, 15, 9, 14, 10, 13]
+
+
+
+experiment:
+  # Defines wheter to train:
+  # - global: aggregate all acquisition sessions. CV settings defined below
+  # - inter_session: Run inter-session CV
+
+  type : "global"                   # global | inter-session
+  seed : 42
+  include_rest : true               #put back to true
+
+cv:
+  mode: "leave_one_batch_out"           # Needed only for global models, otherwise ignored. Also supported: "stratified_kfold" or "group_kfold" 
+  n_splits: 5                           # used only for kfold
+  val_size: 0.2                         # used for internal train/val split

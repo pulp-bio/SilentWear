@@ -1,0 +1,16 @@
+data:
+  data_directory: ./data
+  subject_id: S04
+paths:
+  raw: data_raw_and_filt
+  processed: data_raw_and_filt
+  win_and_feats: wins_and_features
+conditions:
+  silent: silent
+  vocalized: vocalized
+window:
+  window_size_s: 1.6
+feature_extraction:
+  manual_feature_extraction: false
+  num_subwindows: 7
+save_wins_and_feats: true

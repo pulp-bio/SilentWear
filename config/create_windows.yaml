@@ -1,0 +1,22 @@
+# SilentWear subject configuration for windowing and feature extraction
+
+data:
+  data_directory: "/baltic/users/ml_datasets/iis_bio_internal_datasets/2026_spacone_speech_classification_hmi"
+  subject_id: "S04"
+
+paths:
+  raw: "raw"
+  processed: "processed_final"
+  win_and_feats : "win_and_feats"
+
+conditions:
+  silent: "silent"
+  vocalized: "vocalized"
+
+window:
+  window_size_s: 1.6   
+feature_extraction:
+  manual_feature_extraction: false
+  num_subwindows: 7
+
+save_wins_and_feats: true

@@ -1,0 +1,12 @@
+model:
+  kind: ml
+  name: random_forest
+  kwargs:
+    n_estimators: 100
+  features:
+    time_features: true
+    freq_features: true
+    wavelet_features : true
+    scale_feats : false
+
+  
