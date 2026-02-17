@@ -1,0 +1,89 @@
+
+# ============================
+# Python cache / compiled files
+# ============================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ============================
+# Virtual environments
+# ============================
+venv/
+.env/
+.venv/
+env/
+ENV/
+
+# ============================
+# Jupyter Notebook checkpoints
+# ============================
+.ipynb_checkpoints/
+
+# ============================
+# Distribution / packaging
+# ============================
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ============================
+# Logs and temporary files
+# ============================
+*.log
+*.tmp
+*.swp
+
+# ============================
+# IDE / Editor settings
+# ============================
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ============================
+# OS-generated files
+# ============================
+.DS_Store
+Thumbs.db
+
+# ============================
+# Python testing / coverage
+# ============================
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ============================
+# Data files and models
+# ============================
+data/raw/
+data/processed/
+data/wins_and_feats/
+data/umap_plots/
+data/models/
+# *.h5
+# *.bio
+
+# ============================
+# Model checkpoints (optional)
+# ============================
+# *.pt
+# *.pth
+# *.ckpt
+
+# ============================
+# Misc
+# ============================
+*.bak
+*.orig
+
+# ============================
+# Tmp files (optional)
+# ============================
+*tmp
+
+# Silent wear env
+silent_wear
