@@ -37,6 +37,12 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
+import sys
+PROJECT_ROOT = Path(__file__).resolve().parents[1]   
+sys.path.insert(0, str(PROJECT_ROOT))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]   
+sys.path.insert(0, str(PROJECT_ROOT))
+from utils.I_data_preparation.experimental_config import ORIGINAL_LABELS
 
 
 # ----------------------------- helpers -----------------------------
@@ -421,7 +427,9 @@ def main():
 
                 cm_mean, cm_std = mean_std_confusion_matrices(df[cm_col])
 
-                disp_labels = _infer_display_labels(r.run_cfg_json, fallback_n=cm_mean.shape[0])
+
+                disp_labels = list(ORIGINAL_LABELS.values())
+                print(disp_labels)
 
                 disp = ConfusionMatrixDisplay(confusion_matrix=cm_mean, display_labels=disp_labels)
                 disp.plot(ax=ax, cmap=plt.cm.Blues, colorbar=False, include_values=False)
