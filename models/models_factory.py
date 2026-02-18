@@ -190,8 +190,8 @@ def random_forest_factory(
 # DL Registrations
 # -------------------------------------------------------------------------------------------------
 
-@register_dl_model("speechnet_base")
-def speechnet_base(
+@register_dl_model("speechnet")
+def speechnet(
     *,
     num_channels: int,
     num_samples: int,
@@ -210,79 +210,12 @@ def speechnet_base(
       - p_dropout
       - anything else (future-proof), passed through if supported
     """
-    from models.cnn_architectures.BaseSpeechNet import BaseSpeechNet
+    from models.cnn_architectures.SpeechNet import SpeechNet
     #print("speech net base with kwars", model_kwargs)
-    return BaseSpeechNet(
+    return SpeechNet(
         C=num_channels,
         T=num_samples,
         output_classes=num_classes,
         **model_kwargs,   # <-- passes blocks_config, dropout, etc.
     )
-
-@register_dl_model("speechnet_padded")
-def speechnet_padded(
-    *,
-    num_channels: int,
-    num_samples: int,
-    num_classes: int,
-    **model_kwargs,
-    ) -> nn.Module:
-    """
-    Factory for EpiDeNet.
-
-    Required ctx keys:
-      - num_channels
-      - num_samples
-      - num_classes
-
-    Optional kwargs:
-      - p_dropout
-      - anything else (future-proof), passed through if supported
-    """
-    from models.cnn_architectures.BaseSpeechNetWithPadding import BaseSpeechNetWithPadding
-    #print("speech net base with kwars", model_kwargs)
-    return BaseSpeechNetWithPadding(
-        C=num_channels,
-        T=num_samples,
-        output_classes=num_classes,
-        **model_kwargs,   # <-- passes blocks_config, dropout, etc.
-    )
-
-@register_dl_model("tcnformer_base")
-def tcnformer_base(
-    *,
-    num_channels: int,
-    num_samples: int,   # not used by TCNformer, but kept for interface consistency
-    num_classes: int,
-    **model_kwargs,
-    ) -> nn.Module:
-    """
-    Factory for TCNformer.
-    """
-    from models.cnn_architectures.TcnFormer import TCNformer, validate_tcnformer_kwargs, to_namespace
-
-    # Copy so we don't mutate caller dict
-    cfg = dict(model_kwargs)
-
-    # # Remove duplicates that may already be provided by ctx
-    # cfg.pop("num_classes", None)
-    # cfg.pop("input_size", None)
-    # cfg.pop("num_channels", None)  # (only if YAML might contain it)
-    # cfg.pop("num_samples", None)   # (only if YAML might contain it)
-
-    # Inject ctx keys -> model expects these names
-    cfg["input_size"] = num_channels
-    print("Set input size to ", cfg["input_size"], "received number of channels is:", num_channels)
-    cfg["num_classes"] = num_classes
-
-    # Validate only the structural parts
-    validate_tcnformer_kwargs(cfg)
-    
-    # Optional: if you keep train_cfg in YAML and don't want it inside model config
-    cfg.pop("train_cfg", None)
-
-    config_obj = to_namespace(cfg)
-
-    print(config_obj)
-    return TCNformer(config_obj)
 

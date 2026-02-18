@@ -2,30 +2,46 @@
 
 Code release for **SilentWear: an Ultra-Low Power Wearable Interface for EMG-based Silent Speech Recognition**
 
-This repository is organized as a **reproducibility artifact**:
+This repository is organized as a **reproducibility artifact** for the experimental :
 1. *(Optional)* convert raw BioGUI recordings to `.h5`
 2. Generate **EMG windows + features**
-3. Run **Global** and **Inter-Session** experiments
-4. generate **paper tables/figures** from saved run summaries
+3. Run Experiments : **Global** ; **Inter-Session**; **Training-from-scratch**,  **Incremental-fine-tuning** experiments
+4. Generate **tables/figures** from saved run summaries
 
-> Dataset: released separately on Hugging Face. The code can either use the released `wins_and_features/` directly (fast path),
-> or regenerate windows/features for new window sizes (ablation path).
+Dataset: released separately on Hugging Face. 
 
 ---
 
-## Environment
+## 🛠 Environment Setup
+
+Start by creating a dedicated virtual environment:
+
+If using **conda**
+```bash
+conda create -n silent_wear python=3.11.9
+conda activate silent_wear
+```
+
+If using **venv**
+```bash
+python3.11 -m venv silent_wear
+source silent_wear/bin/activate
+```
+
+Clone this repository and install the required dependencies:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
+git clone <REPO_URL>
+cd SilentWear
 pip install -r requirements.txt
 ```
 
----
 
-## Data layout
+## Donwload the Data
 
-Set `DATA_DIR` to the dataset root folder. The code expects the Hugging Face release layout:
+You can download the data used in this work from: https://huggingface.co/datasets/PulpBio/SilentWear
+
+The code expects the Hugging Face release layout:
 
 ```text
 DATA_DIR/
@@ -33,44 +49,133 @@ DATA_DIR/
 └── wins_and_features/
 ```
 
+Before starting your experiments, change the data paths in: ```config/paper_models_config.yaml``` and ```config/create_windows.yaml```
+
 If you want to collect your own data using your own recordings from, see **Optional: raw data preprocessing** below.
 
----
+## Reproduce Paper Results
+The ```script``` folder allows to reproduce the results of the paper. </br>
 
-## Reproduce paper results (recommended)
-
-Run the end-to-end script:
-
-```bash
-export DATA_DIR=/path/to/dataset_root
-bash scripts/reproduce_paper.sh
-```
-
-Outputs are written to:
-
-```text
-artifacts/
-├── models/     # per-run folders, each with cv_summary.csv + run_cfg.json
-├── tables/     # CSVs used for paper numbers
-└── figures/    # SVG confusion matrices and plots
-```
-
-### Regenerate windows/features for ablations
-
-The dataset ships one example windowing configuration. To rerun ablations with a different window size:
+### Step 1: Prepare EMG-windows and (optionally) features
 
 ```bash
-export DATA_DIR=/path/to/dataset_root
-export REGEN_WINDOWS=1
-export WINDOW_S=1.4
-bash scripts/reproduce_paper.sh
+cd reproduce_paper_scripts
+python 20_make_windows_and_features.py --data_dir ./path_to_your_data
 ```
+
+This reads your data and create windows and features, which will be used to run the ITR ablations. 
+
+### Step 2: Run Experiments
+
+#### Global Evaluation Setting
+
+Random Forest
+```bash
+python scripts/30_run_experiments.py \
+--base_config config/paper_models_config.yaml \
+--model_config config/models_configs/random_forest_config.yaml \ 
+--data_dir ./data --artifacts_dir ./artifacts --experiment global
+```
+
+SpeechNet
+```bash
+python scripts/30_run_experiments.py 
+--base_config config/paper_models_config.yaml \ 
+--model_config config/models_configs/random_forest_config.yaml \ 
+--data_dir ./data --artifacts_dir ./artifacts --experiment global
+```
+
+
+#### Inter-Session Evaluation Setting
+
+Random Forest
+```bash
+python reproduce_paper_scripts/30_run_experiments.py 
+--base_config config/paper_models_config.yaml 
+--model_config config/models_configs/random_forest_config.yaml 
+--data_dir /scratch2/gspacone/DATA_DIR_SILENT 
+--artifacts_dir artifacts 
+--experiment inter_session --inter_session_windows_s 1.4
+```
+
+Speech Net
+```bash
+python reproduce_paper_scripts/30_run_experiments.py 
+--base_config config/paper_models_config.yaml 
+--model_config config/models_configs/random_forest_config.yaml 
+--data_dir /scratch2/gspacone/DATA_DIR_SILENT 
+--artifacts_dir artifacts --experiment inter_session
+```
+Note: this will run by default all the ablations on the window size. Window sizes: [0.4, 0.6, 0.8, 1.0, 1.2, 1.4].
+You can pass a single float value if you want to train only on one specific window size. 
+
+
+#### Training From Scratch
+```bash
+python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir /scratch2/gspacone/DATA_DIR_SILENT --artifacts_dir artifacts --experiment train_from_scratch --tfs_config config/paper_train_from_scratch_config.yaml --tfs_windows_s 1.4
+```
+Adjust tfs_windows_s to select a different window size
+
+
+#### Inter-Session Fine Tuning
+```bash
+python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir /scratch2/gspacone/DATA_DIR_SILENT --artifacts_dir artifacts --experiment inter_session_ft --ft_config config/paper_ft_config.yaml --ft_windows_s 1.4
+```
+Adjust ft_windows_s to select a different window size
+
+
+
+### Step 3: Generate results 
+
+Run these commands to generate the results
+
+#### Global / Inter Session Experiments Results
+
+Random Forest:
+
+```bash
+python utils/III_results_analysis/I_global_intersession_analysis.py --artifacts_dir ./artifacts --experiment global --model_name random_forest --model_name_id w1400ms 
+```
+SpeechNet:
+```bash
+  python utils/III_results_analysis/I_global_intersession_analysis.py --artifacts_dir ./artifacts --experiment global --model_name random_forest --model_name_id w1400ms --plot_confusion_matrix --transparent
+```
+
+Switch experiment between global and inter_session.
+
+#### ITR on SpeechNet
+```bash
+  python utils/III_results_analysis/II_infotransrate.py --artifacts_dir ./artifacts --experiment inter_session
+```
+
+
+#### Fine-Tuning + From -Scratch Evaluations
+```bash
+python utils/III_results_analysis/III_ft_results.py --artifacts_dir ./artifacts --model_name speechnet --model_base_id w1400ms --inter_session_model_id model_1
+--ft_id ft_config_0 --bs_id bs_config_0 
+```
+Note:
+
+If you runned multiple fine tuning or baseline rounds for the same window size, adjust ft_id and bs_id accordingly.
+If you ran the inter session models multiple times, chage the inter_session_model_id
+
+### Run minimal experiments.
+
+The ```script``` folder is built around the standalone scripts contained in:
+
+a) ```utils/II_feature_extraction``` and ```utils/III_results_analysis```
+
+b) ```offline_experiments```
+
+The script in these folder can be runned independently
+
+They can be used as a starting point to **test your own model**
 
 ---
 
-## Optional: raw data preprocessing (only if you collected new data)
+## Extras: raw data preprocessing (only if you collected new data)
 
-If you recorded new data using BioGUI, convert `.bio` recordings to `.h5` using:
+If you recorded new data using the BioGUI, you can convert your `.bio` recordings to `.h5` using:
 
 ```text
 utils/I_data_preparation/data_preparation.py
@@ -80,16 +185,6 @@ Then run windowing/feature extraction as above.
 
 ---
 
-## Configs
-
-Open-release config templates (no internal paths):
-- `config/open_release_create_windows.yaml`
-- `config/open_release_base_models_config.yaml`
-
-Model definitions live in:
-- `config/models_configs/`
-
----
 
 ## Citation
 

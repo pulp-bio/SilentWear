@@ -85,5 +85,11 @@ data/models/
 # ============================
 *tmp
 
+
+# ============================
+# Artifacts
+# ============================
+artifacts
 # Silent wear env
 silent_wear
+silent_wear_os

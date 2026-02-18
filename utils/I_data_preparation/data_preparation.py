@@ -13,14 +13,14 @@ from visualizations import *
 
 #================ USER_EDITABLE =========================
 
-DATA_DIRECTORY = Path(r"/baltic/users/ml_datasets/iis_bio_internal_datasets/2026_spacone_speech_classification_hmi")
+DATA_DIRECTORY = Path(r"... path_to_your_data")
 sub_ids = ["S01", "S02", "S03", "S04"]
 #sub_ids = ["S01"]
 process_all = True
 # If Process_all = False -> select what you want to process 
 session_id = 1
 batch_id = 5
-type='vocalized'        # silent or vocalized
+condition='vocalized'        # silent or vocalized
 
 HP_CUTOFF = 20          # Frequency for HP Filter
 PLI_CUTOFF = 50         # Frequency for PLI Filter
@@ -34,8 +34,8 @@ if __name__=='__main__':
 
     
     for sub_id in sub_ids:
-        data_dire_raw = DATA_DIRECTORY/'raw'/sub_id
-        data_dire_processed = DATA_DIRECTORY/'processed_final'/sub_id
+        data_dire_raw = DATA_DIRECTORY/'raw'/sub_id                                 # directory where you placed your .bio recordings
+        data_dire_processed = DATA_DIRECTORY/'raw_and_processed'/sub_id
 
         if data_dire_processed.exists() == False:
             data_dire_processed.mkdir(parents=True)
@@ -45,7 +45,7 @@ if __name__=='__main__':
         print("Created directory: ", data_dire_processed)
         if Path(data_dire_processed/'vocalized').exists()==False:
             Path(data_dire_processed/'vocalized').mkdir()
-        ## =============== PROCESS A SINGLE RECORDING ==============================
+        
         if process_all:
             # If process_all=True -> process everything found for that subject
             process_all_recordings_for_subject(
@@ -58,20 +58,21 @@ if __name__=='__main__':
             )
 
         else:
+            ## =============== PROCESS A SINGLE RECORDING ==============================
             print("===")
             print(data_dire_raw)
             bio_file_path = find_bio_file(
             data_dir_raw=data_dire_raw.parent,
             subject=sub_id,
-            condition=type,
+            condition=condition,
             session_id=session_id,
             batch_id=batch_id
             )
 
             print("Found file:", bio_file_path)
 
-            save_path_tmp = Path("/scratch2/gspacone/sensors_2026_final/figures/time_series/S01_vocalized_sess_1_batch_1_tmp.png")
-            emg_df = read_single_recording(bio_file_path, session_id, batch_id, HP_CUTOFF, PLI_CUTOFF, plot=True, save_path=save_path_tmp)
+            save_fig_path = None            # change with a Path to save the figure
+            emg_df = read_single_recording(bio_file_path, session_id, batch_id, HP_CUTOFF, PLI_CUTOFF, plot=True, save_path=None)
             # save it as hdf file
 
             file_path_processed = data_dire_processed/f'sess_{session_id}_batch_{batch_id}.hf'

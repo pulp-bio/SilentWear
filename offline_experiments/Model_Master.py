@@ -11,7 +11,6 @@ sys.path.insert(0, str(PROJECT_ROOT))
 PROJECT_ROOT = Path(__file__).resolve().parents[2]     
 sys.path.insert(0, str(PROJECT_ROOT))
 from utils.I_data_preparation.experimental_config import ORIGINAL_LABELS, FS
-from utils.I_data_preparation.read_mat_file import MAT_LABLES
 from models.models_factory import ModelSpec, build_model_from_spec
 from models.SklearnTrainer import * 
 from models.TorchTrainer import * 
@@ -31,9 +30,8 @@ class Model_Master:
     def __init__(self, base_config: dict, model_config: dict) -> None:
         self.base_config = base_config
         self.model_config = model_config
-
         # label maps
-        self.original_label_map = ORIGINAL_LABELS.copy() if self.base_config['data']['subject_id'] !='S00' else MAT_LABLES.copy()
+        self.original_label_map = ORIGINAL_LABELS.copy() 
         self.channel_order = self.base_config.get("channel_order", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15])
         #print(self.channel_order)
         #print(self.original_label_map)
@@ -169,9 +167,6 @@ class Model_Master:
             # ---- Print dataset statistics ----
             self.print_dataset_info(df_mapped, dataset_name=name)
     
-    
-
-
 
     def extract_dataset_train_columns(self):
         """
@@ -233,27 +228,6 @@ class Model_Master:
                 raise ValueError(f"[Model_Master.py] Requested channels {missing} not found in dataset columns.")
 
             cols_train = [ch_dict[ch] for ch in self.channel_order]
-
-        # elif self.kind == 'dl':
-        #     # consider raw channel data
-        #     # TO-DO, make it modular
-        #     if self.df_train.empty == False:
-        #         cols_train = self.df_train.columns[
-        #             self.df_train.columns.str.contains("^Ch_") &
-        #             self.df_train.columns.str.contains("_filt$")
-        #         ]
-        #     elif self.df_test.empty == False:
-        #         cols_train = self.df_test.columns[
-        #             self.df_test.columns.str.contains("^Ch_") &
-        #             self.df_test.columns.str.contains("_filt$")
-        #         ]
-        #     else:
-        #         print("[Model_Master.py: ] Both training and Test Datasets are empty, return!")
-        #         sys.exit()
-        #     cols_train = list(cols_train.values)
-        #     print(cols_train)
-        
-
         
         self.data_col_to_consider = cols_train
         #print("Training Columns will be: ")
@@ -262,9 +236,6 @@ class Model_Master:
         
         
         return cols_train
-    
-
-
     
 
     def print_dataset_info(self, df: pd.DataFrame, dataset_name: str) -> None:

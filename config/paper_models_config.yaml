@@ -1,0 +1,34 @@
+data:
+  data_directory: /scratch2/gspacone/DATA_DIR_SILENT
+  models_main_directory: ./artifacts
+  subject_id: S01
+paths:
+  processed: data_raw_and_filt
+  win_and_feats: wins_and_features
+  models: models
+condition: vocalized
+window:
+  window_size_s: 1.4
+channel_order:
+- 0
+- 1
+- 2
+- 5
+- 3
+- 4
+- 7
+- 6
+- 8
+- 15
+- 9
+- 14
+- 10
+- 13
+
+experiment:
+  seed: 42
+  include_rest: true
+cv:
+  global_cv_mode: leave_one_batch_out
+  n_splits: 5
+  val_size: 0.2

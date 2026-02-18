@@ -219,12 +219,11 @@ def plot_label_waveform(emg_df, use_label_str=True):
     plt.show()
 
 
-# Example usage:
-# plot_16ch_color_by_label(emg_df, fs=FS, use_filtered=True)
-
 
 if __name__ == '__main__':
-    h5_file = r"C:\Users\giusy\OneDrive\Desktop\PAPERS\2026_Sensors_speech\SilentWear\data\processed\S02\vocalized\sess_1_batch_3.h5"
+
+    # Adjust here the path
+    h5_file = r"\data\processed\S01\vocalized\sess_1_batch_1.h5"
     df = pd.read_hdf(h5_file)
 
     plot_emg_color_by_label(df, fs=500, use_filtered=True)

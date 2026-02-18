@@ -14,7 +14,6 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from utils.I_data_preparation.experimental_config import label_to_word_map, FS
 from utils.II_feature_extraction.SingleRecordingExtractor import Single_Recording_Windower_and_Feature_Extractor
 from utils.general_utils import *
-from utils.I_data_preparation.read_mat_file import MAT_LABLES
 
 
 class Global_Windower_and_Feature_Extractor:
@@ -47,7 +46,7 @@ class Global_Windower_and_Feature_Extractor:
     def find_all_processed_h5(self):
         "Function to return all h5 files contained in the processed directory"
         # Find all .bio files under the subject raw folder
-        h5_files = sorted((self.data_directory/'processed_final'/self.sub_id).rglob("*.h5"))
+        h5_files = sorted((self.data_directory/'data_raw_and_filt'/self.sub_id).rglob("*.h5"))
         #print("Found files for current user:")
         #print(h5_files)
         return h5_files
@@ -58,7 +57,7 @@ class Global_Windower_and_Feature_Extractor:
 
         # Extract the parent directory
         
-        self.data_dire_wins_and_feats = self.data_directory / 'wins_and_feats_final'
+        self.data_dire_wins_and_feats = self.data_directory / 'wins_and_features'
         # if self.data_dire_wins_and_feats.exists() == False:
         #     self.data_dire_wins_and_feats.mkdir()
         #     print("[INFO] Created directory:", self.data_dire_wins_and_feats)
@@ -81,7 +80,8 @@ class Global_Windower_and_Feature_Extractor:
             self.create_saving_directory()
         
         h5_files = self.find_all_processed_h5()
-
+        print("hf files found:")
+        print(h5_files)
         for curr_h5_file in h5_files:
             print("Processing file:", curr_h5_file)
 
@@ -102,11 +102,8 @@ class Global_Windower_and_Feature_Extractor:
                     window_size_s= self.win_size_sec, 
                     manual_feature_extraction=self.manual_feature_extraction, 
                     num_subwindows=self.num_subwins)
-                if self.sub_id != "S00":
-                    df_wins_feats = single_rec_win_feat.process_single_recording()
-                elif self.sub_id == "S00":
-                    df_wins_feats = single_rec_win_feat.process_single_recording(valid_labels=MAT_LABLES.keys())
 
+                df_wins_feats = single_rec_win_feat.process_single_recording()
                 if self.save_data:
                     df_wins_feats.to_hdf(df_save_path, key='wins_feats', mode='w')
 

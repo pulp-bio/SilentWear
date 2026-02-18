@@ -14,7 +14,6 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from utils.I_data_preparation.experimental_config import *
 from utils.II_feature_extraction.FeatExtractorManager import FeatureExtractor
 from utils.I_data_preparation.read_bio_file import print_label_statistics
-from utils.I_data_preparation.read_mat_file import MAT_LABLES
 
 class Single_Recording_Windower_and_Feature_Extractor:
     def __init__(self, 
@@ -290,7 +289,9 @@ class Single_Recording_Windower_and_Feature_Extractor:
 
 
 if __name__ == '__main__':
-    main_data_dire = Path(r"C:\Users\giusy\OneDrive\Desktop\PAPERS\2026_Sensors_speech\SilentWear\data\processed\S00\silent")
+    # adjust here with the path. 
+    # Convention strucutre: \data\raw\<subject_id>\<condition>
+    main_data_dire = Path(r"\data\raw\<subject_id>\<condition>")
 
     # read all bio files
     all_bios_in_folder = main_data_dire.rglob("*.h5")
@@ -299,5 +300,4 @@ if __name__ == '__main__':
         print(curr_h5)
         # intialize a new class
         feat_extract = Single_Recording_Windower_and_Feature_Extractor(main_data_dire, curr_h5, window_size_s=1.4, manual_feature_extraction=False)
-        feat_extract.process_single_recording(valid_labels= MAT_LABLES.keys())
-        break
+

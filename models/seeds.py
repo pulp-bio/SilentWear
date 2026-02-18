@@ -1,7 +1,5 @@
 # Definitions of seeds for Data Preparation Loaders and Training script
 # Following the guidelines at: https://docs.pytorch.org/docs/2.5/notes/randomness.html
-
-
 import os
 # needed for GPU
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"

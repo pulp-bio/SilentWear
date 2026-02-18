@@ -12,12 +12,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 from I_data_preparation.emg_processing import *
 from I_data_preparation.experimental_config import * 
 from I_data_preparation.visualizations import * 
-from I_data_preparation.read_mat_file import *
 
-
-BIO_RE = re.compile(
-    r"sess_(?P<session>\d+)_batch_(?P<batch>\d+)(?:_[^_]*)?_(?P<ts>\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.bio$"
-)
+BIO_RE = re.compile(r"sess_(?P<session>\d+)_batch_(?P<batch>\d+)(?:_[^_]*)?_(?P<ts>\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.bio$")
 
 def read_bio_file(file_path: str) -> dict:
     """
@@ -123,12 +119,6 @@ def read_single_recording(bio_file_path, session_id, batch_id, hp_cutoff, notch_
     if bio_file_path.suffix == '.bio':
         signals = read_bio_file(str(bio_file_path))
         emg_df = prepare_dataset(signals, hp_cutoff=hp_cutoff, notch_cutoff=notch_cutoff)
-    elif bio_file_path.suffix == '.mat':
-        print("Extracting mat file")
-        emg_raw, trigger = load_emg_data_from_mat(bio_file_path)
-
-        emg_df = prepare_dataset_from_mat(emg_raw, trigger, hp_cutoff, notch_cutoff)
-        #print(emg_df)
 
     emg_df['session_id'] = session_id
     emg_df['batch_id'] = batch_id
@@ -229,14 +219,7 @@ def process_all_recordings_for_subject(data_dir_raw: Path,
     #sys.exit()
     if not list(bio_files):
         print(f"No .bio files found under: {data_dir_raw}")
-        # Check if there is a math file (for S00)
-        mat_files = sorted(data_dir_raw.rglob("*.mat"))
-        if not list(mat_files):
-            print(f"No .mat files found under: {data_dir_raw}")
-            return
-    if not bio_files and mat_files:
-        bio_files = mat_files
-
+        sys.exit()
     index_rows = []
     n_done, n_skip, n_fail = 0, 0, 0
 
@@ -254,8 +237,6 @@ def process_all_recordings_for_subject(data_dir_raw: Path,
 
         if bio_path.suffix == '.bio':
             parsed = parse_bio_filename(bio_path)
-        elif bio_path.suffix == '.mat':
-            parsed = parse_mat_filename(bio_path)
         if parsed is None:
             print(f"[SKIP] Could not parse session/batch/timestamp from filename: {bio_path.name}")
             n_fail += 1
@@ -456,24 +437,15 @@ def prepare_dataset(signals, hp_cutoff, notch_cutoff):
 
 
 if __name__=='__main__':
-
-    sub_raw_data_folder = Path(r"C:\Users\giusy\OneDrive\Desktop\PAPERS\2026_Sensors_speech\SilentWear\data\raw\S00\silent")
+    # Modify here with the path with your raw data (.bio file)
+    # Convention strucutre: \data\raw\<subject_id>\<condition>
+    sub_raw_data_folder = Path(r"\DATA\raw\<subject_id>\<condition>")
     # read all bio files
     all_bios_in_folder = sub_raw_data_folder.rglob("*.bio")
-    if not list(all_bios_in_folder):
-        all_bios_in_folder = sub_raw_data_folder.rglob("*.mat")
-        if not all_bios_in_folder:
-            print("Could not find files, exit")
-            sys.exit()
-
-
     for curr_bio in all_bios_in_folder:
         #print("curr bio is")
         if curr_bio.suffix == '.bio':
             parsed = parse_bio_filename(curr_bio)
-        elif curr_bio.suffix == '.mat':
-            parsed = parse_mat_filename(curr_bio)
-            print(parsed)
         if parsed is None:
             print(f"[SKIP] Could not parse session/batch/timestamp from filename: {curr_bio.name}")
             n_fail += 1
@@ -483,7 +455,6 @@ if __name__=='__main__':
         emg_df=read_single_recording(curr_bio, session_id, batch_id, 20, 50, plot=False)
 
         print(print_label_statistics(emg_df))
-        
-        #plot_label_waveform(emg_df, use_label_str=True)
+    
         
         

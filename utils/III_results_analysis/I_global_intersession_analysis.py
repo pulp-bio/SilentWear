@@ -1,270 +1,462 @@
+#!/usr/bin/env python3
 """
-I_global_intersession_analysis.py
-
 Summarize and visualize results from:
 - Global experiments
 - Inter-session experiments
 
-This script:
-1) Loads all saved runs for a given experiment type (global or inter_session)
-2) Filters runs by:
-   - model architecture (model_name)
-   - model variant (model_id)
-   - condition (silent / vocalized / ...)
-   - subject list
-   - window size (sanity check)
-3) Writes per-subject and across-subject performance summaries to CSV
-4) Optionally plots per-subject confusion matrices (mean ± std across CV folds)
+New artifacts layout (paper wrapper compatible):
+  <ARTIFACTS_DIR>/models/<experiment>/<subject>/<condition>/<model_name>/<model_name_id>/model_<k>/
+    - cv_summary.csv
+    - run_cfg.json
 
-Assumptions / prerequisites
----------------------------
-- You have already run the training scripts described in README.md:
-  - offline_experiments/global_models.py
-  - offline_experiments/intersession_models.py
-- Each run directory contains a `cv_summary.csv` file with a column named `confusion_matrix`.
-- The results directory is structured so that:
-  <model_results_dir>/<experiment_to_analyze>/... contains one folder per run.
-  The loader `load_all_results(...)` is responsible for scanning and parsing this structure.
+Outputs:
+  <ARTIFACTS_DIR>/tables/{model}_{model_run or latest}_{condition}_{model_name_id}_{experiment}.csv
+  <ARTIFACTS_DIR>/figures/{model}_{model_run or latest}_{condition}_{model_name_id}_{experiment}_cm.svg
 
-Outputs
--------
-- CSV summary saved into `res_save_folder`:
-  {model_to_select}_{model_id}_{condition}_win{win_size_ms_to_consider}_{experiment_to_analyze}.csv
+Examples:
 
-- If enabled, confusion matrix figure saved into `fig_save_folder`:
-  {model_to_select}_{model_id}_{condition}_win{win_size_ms_to_consider}_{experiment_to_analyze}.svg
 
-How to run
-----------
-Edit the "USER EDITABLE PART" section, then run:
-
-    python utils/III_results_analysis/I_global_intersession_analysis.py
+Global @ 1400ms:
+  python utils/III_results_analysis/I_global_intersession_analysis.py \
+    --artifacts_dir ./artifacts \
+    --experiment global \
+    --model_name random_forest \
+    --model_name_id w1400ms
 """
 
-import os
-import pandas as pd
-from pathlib import Path
-import sys
+from __future__ import annotations
+
+import argparse
 import json
-import ast
-import numpy as np
-import sys
+import os
+from dataclasses import dataclass
 from pathlib import Path
-project_root = Path().resolve()
-ARTIFACTS_DIR = Path(os.environ.get('SILENTWEAR_ARTIFACTS_DIR', project_root / 'artifacts'))
-.parent.parent
-sys.path.insert(0, str(project_root))
-from utils.III_results_analysis.utils import *
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.metrics import ConfusionMatrixDisplay
 
 
-################## USER EDITABLE PART ##########################################################
-# Paths
-# - model_results_dire: folder containing saved run folders (metadata + CV summaries)
-# - res_save_folder: where numeric CSV summaries are written
-# - fig_save_folder: where figures are written
-model_results_dire = ARTIFACTS_DIR / 'models'
-res_save_folder = ARTIFACTS_DIR / 'tables'
-if res_save_folder.exists() == False:
-    res_save_folder.mkdir(parents=True)
-fig_save_folder = ARTIFACTS_DIR / 'figures'
-if fig_save_folder.exists() == False:
-    fig_save_folder.mkdir(parents=True)
+# ----------------------------- helpers -----------------------------
 
-# Experiment selection:
-# - "global": pooled training across sessions with CV defined in config
-# - "inter_session": train on two sessions, test on the held-out session [or "inter_session_win_sweep"]
-# - other values may exist depending on your training pipeline (e.g., "inter_session_win_sweep")
-experiment_to_analyze = "inter_session_win_sweep"
-
-# Filters
-subjects_to_consider   = ["S01", "S02", "S03", "S04"]
-conditions_to_consider = ["silent", "vocalized"]
-
-# Model selection
-# model_to_select: must match `model_name` stored in result metadata
-# model_id: choose which variant of the model to report (assumes same model_id exists for all subjects)
-model_to_select = "speechnet_padded"     # e.g., speechnet_padded, speechnet_base, random_forest
-model_id        = "model_6"
-
-# Sanity check: enforce a single window size in the filtered results
-win_size_ms_to_consider = 1400
-
-# Plot settings
-plot_confusion_matrix = True
-############################################################################################
+@dataclass
+class RunRef:
+    subject: str
+    condition: str
+    model_name: str
+    model_name_id: str
+    model_run: str              # e.g. model_6
+    run_path: Path              # .../model_6
+    cv_summary_csv: Path
+    run_cfg_json: Path
 
 
-
-if __name__=='__main__':
-     # Load all runs (subjects x conditions) for the requested experiment
-    summary_df = load_all_results(model_results_dire/experiment_to_analyze, subjects_to_consider, conditions_to_consider)
-
-     # Filter by model architecture and model variant
-    model_df = summary_df[summary_df["model_name"] == model_to_select]
-    model_df = model_df[model_df["model_id"] == model_id]
-
-    # Sanity check: the filtered results must contain exactly one window size
-    win_size_unique = model_df["win_size_ms"].unique()
-    print(win_size_unique)
-    if len(win_size_unique)!=1:
-        print("Multiple window sizes found!", win_size_unique)
-        sys.exit()
+def _expand_windows_s(vals: List[float], step: float) -> List[float]:
+    """
+    If [] -> default 0.4..1.4 step 0.2
+    If [single] -> that
+    If [start end] -> expand inclusive with step
+    If [a b c ...] -> explicit list
+    """
+    if len(vals) == 0:
+        start, end = 0.4, 1.4
+    elif len(vals) == 1:
+        return [float(vals[0])]
+    elif len(vals) == 2:
+        start, end = float(vals[0]), float(vals[1])
     else:
-        if win_size_unique!=win_size_ms_to_consider:
-            print("Window size in results dataset is different from what requested")
-            print(f"Requested: {win_size_ms_to_consider}")
-            sys.exit()
-    
-    print("\n\n================== MODEL REPORT ==================\n")
+        return [float(v) for v in vals]
+
+    if step <= 0:
+        raise ValueError("--window_step_s must be > 0")
+
+    if end < start:
+        start, end = end, start
+
+    out = []
+    x = start
+    while x <= end + 1e-9:
+        out.append(round(x, 3))
+        x += step
+
+    if abs(out[-1] - end) > 1e-6:
+        out.append(round(end, 3))
+
+    return out
 
 
-    for condition in conditions_to_consider:
-        # Filter by condition (silent or vocalized)
-        model_condition = model_df[model_df["condition"]==condition]
+def _model_name_id_from_window_s(window_s: float) -> str:
+    return f"w{int(round(window_s * 1000))}ms"
 
-        # Per-subject summary table
-        summary_subjects = model_condition[["subject", "balanced_acc_mean", "balanced_acc_std", "balanced_acc_vals"]]
-        # Format CV results as "mean±std" in percentage points, computed from fold values
+
+def _latest_model_run(folder: Path) -> Optional[str]:
+    """
+    Return latest model_<k> in folder, based on max k.
+    """
+    if not folder.exists():
+        return None
+    candidates = []
+    for p in folder.iterdir():
+        if p.is_dir() and p.name.startswith("model_"):
+            try:
+                k = int(p.name.split("_")[-1])
+                candidates.append((k, p.name))
+            except Exception:
+                continue
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda x: x[0])[-1][1]
+
+
+def _find_runs(
+    artifacts_dir: Path,
+    experiment: str,
+    subjects: List[str],
+    conditions: List[str],
+    model_name: str,
+    model_name_ids: List[str],
+    model_run: Optional[str],
+) -> List[RunRef]:
+    """
+    Scan:
+      artifacts/models/<experiment>/<subject>/<condition>/<model_name>/<model_name_id>/<model_run>/
+    """
+    out: List[RunRef] = []
+    root = artifacts_dir / "models" / experiment
+
+    for sub in subjects:
+        for cond in conditions:
+            for mid in model_name_ids:
+                base = root / sub / cond / model_name / mid
+                if not base.exists():
+                    continue
+
+                mr = model_run if model_run else _latest_model_run(base)
+                if mr is None:
+                    continue
+
+                run_path = base / mr
+                cv = run_path / "cv_summary.csv"
+                cfg = run_path / "run_cfg.json"
+                if not cv.exists():
+                    continue
+
+                out.append(
+                    RunRef(
+                        subject=sub,
+                        condition=cond,
+                        model_name=model_name,
+                        model_name_id=mid,
+                        model_run=mr,
+                        run_path=run_path,
+                        cv_summary_csv=cv,
+                        run_cfg_json=cfg,
+                    )
+                )
+    return out
+
+
+def _pick_bal_acc_col(df: pd.DataFrame) -> str:
+    """
+    Try a few likely names from your trainers.
+    """
+    candidates = [
+        "balanced_accuracy",
+        "balanced_acc",
+        "balanced_acc_test",
+        "balanced_accuracy_test",
+    ]
+    for c in candidates:
+        if c in df.columns:
+            return c
+    raise KeyError(f"Could not find balanced accuracy column. Available: {list(df.columns)}")
+
+
+def _pick_cm_col(df: pd.DataFrame) -> Optional[str]:
+    candidates = [
+        "confusion_matrix",
+        "confusion_matrix_test",
+        "cm",
+    ]
+    for c in candidates:
+        if c in df.columns:
+            return c
+    return None
+
+
+def _parse_cm_cell(x) -> np.ndarray:
+    """
+    confusion matrix cell might be:
+      - JSON string of list-of-lists
+      - python literal string
+      - already list
+    """
+    if isinstance(x, (list, tuple, np.ndarray)):
+        arr = np.asarray(x, dtype=float)
+        return arr
+    if pd.isna(x):
+        raise ValueError("NaN confusion matrix entry")
+
+    s = str(x).strip()
+    try:
+        obj = json.loads(s)
+    except Exception:
+        import ast
+        obj = ast.literal_eval(s)
+    return np.asarray(obj, dtype=float)
+
+
+def mean_std_confusion_matrices(series: pd.Series) -> Tuple[np.ndarray, np.ndarray]:
+    mats = [_parse_cm_cell(v) for v in series.values]
+    stack = np.stack(mats, axis=0)  # [fold, i, j]
+    return stack.mean(axis=0), stack.std(axis=0)
+
+
+def _infer_display_labels(run_cfg_path: Path, fallback_n: int) -> List[str]:
+    """
+    Best-effort label extraction:
+    - If run_cfg has base_cfg with label mapping, use it.
+    - Else fallback to class indices.
+    """
+    if run_cfg_path.exists():
+        try:
+            cfg = json.loads(run_cfg_path.read_text())
+            base = cfg.get("base_cfg", {})
+            # common patterns if you stored it somewhere:
+            for key in ["train_label_map", "label_map", "labels_map", "train_labels_map"]:
+                m = base.get(key, None)
+                if isinstance(m, dict) and len(m) > 0:
+                    # dict values are display labels
+                    return [str(v) for v in m.values()]
+            # sometimes stored at top-level
+            for key in ["train_label_map", "label_map"]:
+                m = cfg.get(key, None)
+                if isinstance(m, dict) and len(m) > 0:
+                    return [str(v) for v in m.values()]
+        except Exception:
+            pass
+
+    return [str(i) for i in range(fallback_n)]
+
+
+# ----------------------------- main analysis -----------------------------
+
+def main():
+    ap = argparse.ArgumentParser()
+
+    ap.add_argument("--artifacts_dir", type=Path, default=None,
+                    help="Root artifacts folder (default: env SILENTWEAR_ARTIFACTS_DIR or ./artifacts)")
+    ap.add_argument("--experiment", type=str, choices=["global", "inter_session"], required=True)
+
+    ap.add_argument("--subjects", nargs="+", default=["S01", "S02", "S03", "S04"])
+    ap.add_argument("--conditions", nargs="+", default=["silent", "vocalized"])
+
+    ap.add_argument("--model_name", type=str, required=True, help="e.g., speechnet or random_forest")
+    ap.add_argument("--model_run", type=str, default=None,
+                    help="e.g., model_6. If omitted, uses latest model_<k> per folder.")
+
+    # Window selection
+    ap.add_argument("--model_name_id", type=str, default=None,
+                    help="e.g., w1400ms. If provided, overrides --windows_s expansion.")
+    ap.add_argument("--windows_s", nargs="*", type=float, default=[],
+                    help="If model_name_id not set: either <start end> or explicit list. Default: 0.4..1.4 step 0.2")
+    ap.add_argument("--window_step_s", type=float, default=0.2)
+
+    # Outputs
+    ap.add_argument("--tables_dir", type=Path, default=None)
+    ap.add_argument("--figures_dir", type=Path, default=None)
+
+    ap.add_argument("--plot_confusion_matrix", action="store_true")
+    ap.add_argument("--transparent", action="store_true", help="Save figures with transparent background")
+
+    args = ap.parse_args()
+
+    artifacts_dir = args.artifacts_dir
+    if artifacts_dir is None:
+        env = os.environ.get("SILENTWEAR_ARTIFACTS_DIR", None)
+        artifacts_dir = Path(env) if env else Path("./artifacts")
+
+    tables_dir = args.tables_dir if args.tables_dir else (artifacts_dir / "tables")
+    figures_dir = args.figures_dir if args.figures_dir else (artifacts_dir / "figures")
+    tables_dir.mkdir(parents=True, exist_ok=True)
+    figures_dir.mkdir(parents=True, exist_ok=True)
+
+    # Determine model_name_ids (windows)
+    if args.model_name_id:
+        model_name_ids = [args.model_name_id]
+    else:
+        windows = _expand_windows_s(args.windows_s, args.window_step_s)
+        model_name_ids = [_model_name_id_from_window_s(w) for w in windows]
+
+    # Scan runs
+    runs = _find_runs(
+        artifacts_dir=artifacts_dir,
+        experiment=args.experiment,
+        subjects=args.subjects,
+        conditions=args.conditions,
+        model_name=args.model_name,
+        model_name_ids=model_name_ids,
+        model_run=args.model_run,
+    )
+
+    if len(runs) == 0:
+        raise SystemExit(
+            f"No runs found for experiment={args.experiment}, model={args.model_name}, "
+            f"model_name_ids={model_name_ids}. Check artifacts_dir={artifacts_dir}"
+        )
+
+    # Group runs by (model_name_id, condition)
+    by_mid_cond: Dict[Tuple[str, str], List[RunRef]] = {}
+    for r in runs:
+        by_mid_cond.setdefault((r.model_name_id, r.condition), []).append(r)
+
+    # For each window + condition, build per-subject summary + (optional) confusion matrices
+    for (mid, cond), run_list in sorted(by_mid_cond.items(), key=lambda x: (x[0][0], x[0][1])):
+        print("\n" + "=" * 90)
+        print(f"Experiment: {args.experiment} | Model: {args.model_name} | model_name_id: {mid} | Condition: {cond}")
+        print("=" * 90)
+
+        rows = []
+        # Keep deterministic subject ordering
+        for sub in args.subjects:
+            rr = [r for r in run_list if r.subject == sub]
+            if len(rr) == 0:
+                continue
+            if len(rr) > 1:
+                # if multiple matches, pick the one with the largest model_k or first
+                rr = sorted(rr, key=lambda x: int(x.model_run.split("_")[-1]) if x.model_run.startswith("model_") else -1)
+            r = rr[-1]
+
+            df = pd.read_csv(r.cv_summary_csv)
+            bal_col = _pick_bal_acc_col(df)
+            bal_vals = df[bal_col].astype(float).to_numpy()
+
+            rows.append({
+                "subject": sub,
+                "condition": cond,
+                "model_name": args.model_name,
+                "model_name_id": mid,
+                "model_run": r.model_run,
+                "run_path": str(r.run_path),
+                "balanced_acc_mean": float(np.mean(bal_vals)),
+                "balanced_acc_std": float(np.std(bal_vals)),
+                "balanced_acc_vals": json.dumps(bal_vals.tolist()),
+            })
+
+        if len(rows) == 0:
+            print(f"[WARN] No subjects found for {mid} / {cond}")
+            continue
+
+        summary_subjects = pd.DataFrame(rows)
+
+        # Pretty mean±std (%)
         mean_std_fmt = []
-        for idx, row in summary_subjects.iterrows():
-            mean = np.round(np.mean(row["balanced_acc_vals"])*100, 1)
-            std = np.round(np.std(row["balanced_acc_vals"])*100, 1)
+        for _, row in summary_subjects.iterrows():
+            vals = np.asarray(json.loads(row["balanced_acc_vals"]), dtype=float)
+            mean = np.round(np.mean(vals) * 100, 1)
+            std = np.round(np.std(vals) * 100, 1)
             mean_std_fmt.append(f"{mean}±{std}")
-        mean_std_dict = {"mean_std_perc" : mean_std_fmt}
-        summary_subjects = pd.concat((summary_subjects, pd.DataFrame(mean_std_dict, index=summary_subjects.index)), axis=1).reset_index(drop=True)
+        summary_subjects["mean_std_perc"] = mean_std_fmt
 
-        # Across-subject aggregate (mean and std of per-subject means)
-        all_accs = np.array(summary_subjects["balanced_acc_mean"].values)
-        summary_subjects.loc[4, "subject"] = 'All'
-        summary_subjects.loc[4, "mean_std_perc"] = f"{np.round((np.mean(all_accs)*100),2)}±{np.round((np.std(all_accs)*100),2)}"
-        # Save numeric summary
-        summary_subjects.to_csv(res_save_folder / f"{model_to_select}_{model_id}_{condition}_win{win_size_ms_to_consider}_{experiment_to_analyze}.csv")
-        print(f"Model: {model_to_select} - Window size: {win_size_unique} - condition:{condition}")
-        print(summary_subjects)
+        # Add All row (mean/std of per-subject means)
+        all_means = summary_subjects["balanced_acc_mean"].to_numpy(dtype=float)
+        all_row = {
+            "subject": "All",
+            "condition": cond,
+            "model_name": args.model_name,
+            "model_name_id": mid,
+            "model_run": (args.model_run if args.model_run else "latest"),
+            "run_path": "",
+            "balanced_acc_mean": float(np.mean(all_means)),
+            "balanced_acc_std": float(np.std(all_means)),
+            "balanced_acc_vals": "",
+            "mean_std_perc": f"{np.round(np.mean(all_means)*100, 2)}±{np.round(np.std(all_means)*100, 2)}",
+        }
+        summary_subjects = pd.concat([summary_subjects, pd.DataFrame([all_row])], ignore_index=True)
 
-        print("\n\n")
-    
+        # Save CSV
+        model_run_tag = args.model_run if args.model_run else "latest"
+        out_csv = tables_dir / f"{args.model_name}_{model_run_tag}_{cond}_{mid}_{args.experiment}.csv"
+        summary_subjects.to_csv(out_csv, index=False)
+        print(summary_subjects[["subject", "mean_std_perc"]])
+        print(f"[SAVED] {out_csv}")
 
-        # Plot per-subject confusion matrix
-        if plot_confusion_matrix:
+        # Confusion matrices (2x2)
+        if args.plot_confusion_matrix:
+            n_subj = len(args.subjects)
+            nrows, ncols = 2, 2
             fig, axs = plt.subplots(
-                1,
-                len(subjects_to_consider),
-                figsize=(20, 6),
-                sharey=True,
-                constrained_layout=True
-            )
-
-            axs = np.atleast_1d(axs)
-            for subject_id, subject in enumerate(subjects_to_consider):
-                # Extract subject
-                curr_subj = model_condition[model_condition["subject"]==subject]
-                run_path = curr_subj["run_path"].iloc[0]
-                # extract csv summary path
-                df = pd.read_csv(f"{run_path}/cv_summary.csv")
-
-                cm_mean, cm_std = mean_std_confusion_matrices(df["confusion_matrix"])
-
-                ax = axs[subject_id]
-                disp_lables = list(curr_subj["train_label_map"].iloc[0].values())
-                disp = ConfusionMatrixDisplay(confusion_matrix=cm_mean, display_labels=disp_lables)
-
-                # heatmap from mean (no default numbers)
-                disp.plot(ax=ax, cmap=plt.cm.Blues, colorbar=False, include_values=False)
-            
-                mean_sub = np.round(np.mean(curr_subj['balanced_acc_vals'].iloc[0])*100, 1)
-                std_sub = np.round(np.std(curr_subj['balanced_acc_vals'].iloc[0])*100, 1)
-                title = f"{subject} | {mean_sub}±{std_sub}"
-                ax.set_title(title, fontsize=18)  # one title per subject
-                ax.tick_params(axis="x", labelrotation=45, labelsize=14)
-                ax.set_xticklabels(ax.get_xticklabels(), ha="right")
-                ax.tick_params(axis="y", labelsize=14)
-                # annotate mean ± std
-                for (i, j), m in np.ndenumerate(cm_mean):
-                    s = cm_std[i, j]
-                    ax.text(j, i, f"{m:.2f}\n±{s:.2f}", ha="center", va="center", fontsize=10)
-                #plt.tight_layout()
-            #fig.subplots_adjust(top=0.88, bottom=0.12)
-
-            plt.savefig(fig_save_folder/f"{model_to_select}_{model_id}_{condition}_win{win_size_ms_to_consider}_{experiment_to_analyze}.svg", bbox_inches="tight")  # final guarantee)
-
-            # Plot per-subject confusion matrix
-        if plot_confusion_matrix:
-
-            n_subj = len(subjects_to_consider)
-            ncols = 2
-            nrows = 2
-
-            fig, axs = plt.subplots(
-                nrows,
-                ncols,
+                nrows, ncols,
                 figsize=(10, 4.5 * nrows),
-                sharex=True,
-                sharey=True,
+                sharex=True, sharey=True,
                 constrained_layout=False
             )
-
             fig.subplots_adjust(
-                left=0.12,
-                right=0.98,
-                top=0.92,
-                bottom=0.10,
-                wspace=0.08,
-                hspace=0.25
+                left=0.12, right=0.98, top=0.92, bottom=0.10,
+                wspace=0.08, hspace=0.25
             )
-
             axs = np.atleast_2d(axs)
 
-            # store first image of each row for colorbar
             row_images = {}
 
-            for subject_id, subject in enumerate(subjects_to_consider):
-                row = subject_id // 2
-                col = subject_id % 2
-
-                curr_subj = model_condition[model_condition["subject"] == subject]
-                run_path = curr_subj["run_path"].iloc[0]
-
-                df = pd.read_csv(f"{run_path}/cv_summary.csv")
-                cm_mean, cm_std = mean_std_confusion_matrices(df["confusion_matrix"])
-
+            for idx, sub in enumerate(args.subjects):
+                row = idx // 2
+                col = idx % 2
                 ax = axs[row, col]
 
-                disp_labels = list(curr_subj["train_label_map"].iloc[0].values())
+                rr = [r for r in run_list if r.subject == sub]
+                if len(rr) == 0:
+                    ax.axis("off")
+                    continue
+                r = rr[-1]
 
-                disp = ConfusionMatrixDisplay(
-                    confusion_matrix=cm_mean,
-                    display_labels=disp_labels
-                )
+                df = pd.read_csv(r.cv_summary_csv)
+                cm_col = _pick_cm_col(df)
+                if cm_col is None:
+                    ax.set_title(f"{sub} | (no CM in cv_summary.csv)", fontsize=16)
+                    ax.axis("off")
+                    continue
 
-                disp.plot(
-                    ax=ax,
-                    cmap=plt.cm.Blues,
-                    colorbar=False,
-                    include_values=False, 
-                )
+                cm_mean, cm_std = mean_std_confusion_matrices(df[cm_col])
+
+                disp_labels = _infer_display_labels(r.run_cfg_json, fallback_n=cm_mean.shape[0])
+
+                disp = ConfusionMatrixDisplay(confusion_matrix=cm_mean, display_labels=disp_labels)
+                disp.plot(ax=ax, cmap=plt.cm.Blues, colorbar=False, include_values=False)
+
+                # Force consistent scale
                 im = ax.images[0]
                 im.set_clim(0.0, 1.0)
 
-                mean_sub = np.round(np.mean(curr_subj["balanced_acc_vals"].iloc[0]) * 100, 1)
-                std_sub  = np.round(np.std(curr_subj["balanced_acc_vals"].iloc[0]) * 100, 1)
-
-                ax.set_title(f"{subject} | {mean_sub}±{std_sub}", fontsize=20)
+                # title: subject | mean±std balanced acc
+                subj_row = summary_subjects[summary_subjects["subject"] == sub]
+                if len(subj_row) > 0:
+                    title = f"{sub} | {subj_row['mean_std_perc'].iloc[0]}"
+                else:
+                    title = sub
+                ax.set_title(title, fontsize=20)
                 ax.tick_params(axis="x", labelrotation=45, labelsize=15)
                 ax.set_xticklabels(ax.get_xticklabels(), ha="right")
                 ax.tick_params(axis="y", labelsize=15)
                 ax.set_xlabel("")
                 ax.set_ylabel("")
 
-                # store first image per row
+                # store image for row colorbar
                 if row not in row_images:
                     row_images[row] = ax.images[0]
 
-            # turn off unused axes
+                # # annotate mean±std per cell
+                # for (i, j), m in np.ndenumerate(cm_mean):
+                #     s = cm_std[i, j]
+                #     ax.text(j, i, f"{m:.2f}\n±{s:.2f}", ha="center", va="center", fontsize=10)
+
+            # turn off unused axes if fewer than 4 subjects
             for k in range(n_subj, nrows * ncols):
                 axs.flatten()[k].axis("off")
 
-            # ---- Add one colorbar per row (on the LEFT) ----
+            # one colorbar per row (left)
             for row in range(nrows):
                 if row in row_images:
                     cbar = fig.colorbar(
@@ -277,6 +469,11 @@ if __name__=='__main__':
                     cbar.ax.tick_params(labelsize=15)
                     cbar.set_label("Accuracy", fontsize=15)
 
-            plt.savefig(fig_save_folder/f"{model_to_select}_{model_id}_{condition}_win{win_size_ms_to_consider}_{experiment_to_analyze}_2x2.svg", 
-                        bbox_inches="tight", transparent=True) 
+            out_fig = figures_dir / f"{args.model_name}_{model_run_tag}_{cond}_{mid}_{args.experiment}_cm_2x2.svg"
+            plt.savefig(out_fig, bbox_inches="tight", transparent=args.transparent)
+            plt.close(fig)
+            print(f"[SAVED] {out_fig}")
 
+
+if __name__ == "__main__":
+    main()

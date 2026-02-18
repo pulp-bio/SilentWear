@@ -1,0 +1,13 @@
+# Train-from-scratch (progressive FT starting from random init)
+# IMPORTANT: model_name_id must be aligned across experiments for the same window size.
+# Recommended convention: model_name_id = "w<WINDOW_MS>ms"  (e.g., w800ms, w1400ms)
+
+model_name_id: "w1400ms"   
+
+# Train-from-scratch hyperparameters
+fs_lr: 1.0e-3
+num_fs_epochs: 100 
+
+# If for the first batch you want to use different settings
+lr_first_train: 1.0e-3
+num_epochs_first_train: 100 
