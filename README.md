@@ -71,7 +71,7 @@ This reads your data and create windows and features, which will be used to run 
 
 Random Forest
 ```bash
-python scripts/30_run_experiments.py \
+python reproduce_paper_scripts/30_run_experiments.py \
 --base_config config/paper_models_config.yaml \
 --model_config config/models_configs/random_forest_config.yaml \ 
 --data_dir ./data --artifacts_dir ./artifacts --experiment global
