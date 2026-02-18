@@ -96,6 +96,7 @@ def load_results(
     subjects,
     ft_id,
     model_base_id,
+    inter_session_id = None, 
     type="ft",
     ):
     """
@@ -111,10 +112,9 @@ def load_results(
     ref_epochs = None
 
     for subject_id in subjects:
-        
-        results_path = (Path(base_model_folder)/ f"{subject_id}/{condition}/{model_name}/{model_base_id}/{ft_id}/{type}_summary.csv")
 
         if type == "train_from_scratch":
+            results_path = (Path(base_model_folder)/ f"{subject_id}/{condition}/{model_name}/{model_base_id}/{ft_id}/{type}_summary.csv")
             cfg_file = (
                 Path(base_model_folder)
                 / f"{subject_id}/{condition}/{model_name}/{model_base_id}/{ft_id}/tfs_cfg.json"
@@ -129,13 +129,14 @@ def load_results(
             win_size = int(float(min_run_cfg["base_cfg"]["window"]["window_size_s"]) * 1000)
 
         else:
+            results_path = (Path(base_model_folder)/ f"{subject_id}/{condition}/{model_name}/{model_base_id}/{ft_id}/{type}_summary.csv")
             cfg_file = (
                 Path(base_model_folder)
                 / f"{subject_id}/{condition}/{model_name}/{model_base_id}/{ft_id}/ft_cfg.json"
             )
             run_cfg_file = (
                 Path(base_model_folder)
-                / f"{subject_id}/{condition}/{model_name}/{model_base_id}/run_cfg.json"
+                / f"{subject_id}/{condition}/{model_name}/{model_base_id}/{inter_session_id}/run_cfg.json"
             )
             if not run_cfg_file.exists():
                 raise FileNotFoundError(f"Missing run_cfg.json: {run_cfg_file}")
@@ -430,113 +431,6 @@ def prepare_aligned(ft_summary, scratch_summary, show_no_ft=True):
 
 # ------------------------- plotting -------------------------
 
-def plot_single_ft_strategy(summary_condition, condition, show_no_ft=True, title=None, save_path=None):
-    """
-    2 panels:
-      - left: per-subject (same color per subject; solid=FT, dashed=Zero Shot on InterSessionModel)
-      - right: average across subjects
-    Returns lr, num_epochs, scheduler (taken from first subject).
-    """
-    lr = summary_condition[0]["lr"]
-    num_epochs = summary_condition[0]["num_ft_epochs"]
-    scheduler = summary_condition[0]["scheduler"]
-
-    all_means = np.stack([s["subj_acc_means"] for s in summary_condition], axis=0)
-    avg_mean = all_means.mean(axis=0)
-    avg_std = np.std(all_means, axis=0)
-
-    if show_no_ft:
-        all_means_noft = np.stack([s["subjs_acc_means_noft"] for s in summary_condition], axis=0)
-        avg_mean_noft = all_means_noft.mean(axis=0)
-        avg_std_noft = np.std(all_means_noft, axis=0)
-
-    x = summary_condition[0]["num_prev_ft_rounds"]
-
-    fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(14, 5.5), sharex=True, sharey=True)
-
-    cmap = plt.get_cmap("tab10")
-    subject_colors = {subj["subject_id"]: cmap(i % 10) for i, subj in enumerate(summary_condition)}
-
-    for subj in summary_condition:
-        color = subject_colors[subj["subject_id"]]
-        ax_left.errorbar(
-            subj["num_prev_ft_rounds"],
-            subj["subj_acc_means"],
-            yerr=subj["subjs_acc_std"],
-            marker="o",
-            linestyle="-",
-            color=color,
-            capsize=4,
-            alpha=0.9,
-        )
-        if show_no_ft:
-            ax_left.errorbar(
-                subj["num_prev_ft_rounds"],
-                subj["subjs_acc_means_noft"],
-                yerr=subj["subjs_acc_std_noft"],
-                marker="o",
-                linestyle="--",
-                color=color,
-                capsize=4,
-                alpha=0.65,
-            )
-
-    ax_left.set_xlabel("Previous training rounds", fontsize=11)
-    ax_left.set_ylabel("Balanced accuracy (%)", fontsize=11)
-    ax_left.set_title("Per-subject performance", fontsize=12)
-    ax_left.grid(True, linestyle="--", alpha=0.5)
-    ax_left.set_yticks(np.arange(0, 101, 10))
-    ax_left.set_ylim(40, 90)
-    ax_left.set_xticks(np.unique(x))
-
-    ax_right.errorbar(
-        x, avg_mean, yerr=avg_std,
-        marker="o", linestyle="-", capsize=5, linewidth=2.0,
-        label="Fine Tuning"
-    )
-    if show_no_ft:
-        ax_right.errorbar(
-            x, avg_mean_noft, yerr=avg_std_noft,
-            marker="o", linestyle="--", capsize=5, linewidth=2.0,
-            label="Zero Shot (on InterSessionModel)"
-        )
-
-    ax_right.set_xlabel("Previous training rounds", fontsize=11)
-    ax_right.set_title("Average across subjects", fontsize=12)
-    ax_right.grid(True, linestyle="--", alpha=0.5)
-    ax_right.set_yticks(np.arange(0, 101, 10))
-    ax_right.set_ylim(40, 90)
-    ax_right.set_xticks(np.unique(x))
-    ax_right.legend(frameon=False, ncol=1)
-
-    legend_elements = [Line2D([0], [0], linestyle="-", marker="o", label="Fine Tuning")]
-    if show_no_ft:
-        legend_elements.append(Line2D([0], [0], linestyle="--", marker="o", label="Zero Shot (on InterSessionModel)"))
-
-    fig.legend(
-        handles=legend_elements,
-        loc="upper center",
-        ncol=len(legend_elements),
-        frameon=False,
-        fontsize=11,
-        bbox_to_anchor=(0.5, 0.92),
-    )
-
-    nice_title = f"{condition} — FT strategy: lr={_fmt_sci(lr)}, ep={num_epochs}, {scheduler}"
-    if title is not None:
-        nice_title += f"\n{title}"
-    fig.suptitle(nice_title, fontsize=14, y=1.02)
-
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-
-    if save_path is not None:
-        save_path = Path(save_path)
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
-
-    plt.show()
-    return {"lr": lr, "num_epochs": num_epochs, "scheduler": scheduler}
-
 
 def _slice_to_x(subj_dict, x_target):
     """Return arrays aligned to x_target by indexing."""
@@ -565,7 +459,7 @@ def plot_subjs_and_avgs(ft_summary, scratch_summary, show_no_ft=True, save_path=
 
     fs_ax, fs_label, fs_tick, fs_leg = 30, 30, 30, 30
     color_ft = "blue"
-    color_intersess = "orange"
+    color_intersess = "red"
     color_scratch = "green"
 
     # --- per-subject plots ---
@@ -576,15 +470,15 @@ def plot_subjs_and_avgs(ft_summary, scratch_summary, show_no_ft=True, save_path=
         d = per_subj[sid]
 
         ax.errorbar(d["x"] + 1, d["ft_mean"], yerr=d["ft_std"],
-                    marker="o", linestyle="-", capsize=4, linewidth=1.5, color=color_ft)
+                    marker="o", linestyle="-", capsize=4, linewidth=2, color=color_ft)
         if show_no_ft:
             ax.errorbar(d["x"] + 1, d["nf_mean"], yerr=d["nf_std"],
-                        marker="o", linestyle="--", capsize=4, linewidth=1.5, color=color_intersess)
+                        marker="o", linestyle="-", capsize=4, linewidth=2, color=color_intersess)
 
         # From scratch: don't show model 0 (random guessing)
         x_sc = np.asarray(d["x"] + 1)
         ax.errorbar(x_sc[1:], np.asarray(d["sc_mean"])[1:], np.asarray(d["sc_std"])[1:],
-                    marker="s", linestyle="-.", capsize=4, linewidth=1.5, color=color_scratch)
+                    marker="s", linestyle="-", capsize=4, linewidth=2, color=color_scratch)
 
         ax.set_title(sid, fontsize=fs_ax, y=0.92)
         ax.grid(True, linestyle="--", alpha=0.4)
@@ -603,11 +497,11 @@ def plot_subjs_and_avgs(ft_summary, scratch_summary, show_no_ft=True, save_path=
 
     if show_no_ft:
         ax_avg.errorbar(x + 1, avg["nf_mean"], yerr=avg["nf_std"],
-                        marker="o", linestyle="--", capsize=4, linewidth=1.5, color=color_intersess)
+                        marker="o", linestyle="-", capsize=4, linewidth=1.5, color=color_intersess)
 
     x_sc = x + 1
     ax_avg.errorbar(x_sc[1:], avg["sc_mean"][1:], avg["sc_std"][1:],
-                    marker="s", linestyle="-.", capsize=4, linewidth=1.5, color=color_scratch)
+                    marker="s", linestyle="-", capsize=4, linewidth=1.5, color=color_scratch)
 
     ax_avg.set_title("Average", fontsize=fs_ax, y=0.92)
     ax_avg.grid(True, linestyle="--", alpha=0.4)
@@ -619,8 +513,8 @@ def plot_subjs_and_avgs(ft_summary, scratch_summary, show_no_ft=True, save_path=
     # --- legend ---
     style_handles = [Line2D([0], [0], color=color_ft, lw=2.6, linestyle="-", marker="o", label="Fine Tuning")]
     if show_no_ft:
-        style_handles.append(Line2D([0], [0], color=color_intersess, lw=2.6, linestyle="--", marker="o", label="No Fine Tuning"))
-    style_handles.append(Line2D([0], [0], color=color_scratch, lw=2.6, linestyle="-.", marker="s", label="Train From Scratch"))
+        style_handles.append(Line2D([0], [0], color=color_intersess, lw=2.6, linestyle="-", marker="o", label="No Fine Tuning"))
+    style_handles.append(Line2D([0], [0], color=color_scratch, lw=2.6, linestyle="-", marker="s", label="Train From Scratch"))
 
     fig.legend(
         handles=style_handles,
@@ -729,20 +623,10 @@ def main():
             condition=condition,
             subjects=args.subjects,
             ft_id=args.ft_id,
-            model_base_id=f"{args.model_base_id}/{args.inter_session_model_id}",
+            model_base_id=args.model_base_id,
+            inter_session_id = args.inter_session_model_id,
             type="ft",
         )
-
-        info = plot_single_ft_strategy(
-            summary_condition=summary_ft,
-            condition=condition,
-            show_no_ft=True,
-            title=f"ft_id={args.ft_id}",
-            save_path=fig_save_folder / f"ft_{args.ft_id}_{condition}.png",
-        )
-        print("\nFine-Tuning hyperparams:", info)
-
-
         
         # ---- Baseline ----
         summary_baseline = load_results(
@@ -752,6 +636,7 @@ def main():
             subjects=args.subjects,
             ft_id=args.bs_id,
             model_base_id=args.model_base_id,
+            inter_session_id = None, 
             type="train_from_scratch",
         )
 

@@ -425,7 +425,7 @@ def main():
 
         windows_ms = np.sort(dfc["win_size_ms"].unique())
 
-        out_fig = figures_dir / f"itr_{args.model_name}_{cond}_{windows_tag}.svg"
+        out_fig = figures_dir / f"itr_{args.model_name}_{cond}_{windows_tag}.pdf"
         _plot_subjects_plus_average_single_box(
             df_condition=dfc,
             subjects=args.subjects,

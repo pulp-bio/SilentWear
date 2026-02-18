@@ -145,7 +145,7 @@ Switch experiment between global and inter_session.
 
 #### ITR on SpeechNet
 ```bash
-  python utils/III_results_analysis/II_infotransrate.py --artifacts_dir ./artifacts --experiment inter_session
+  python utils/III_results_analysis/II_infotransrate.py --artifacts_dir ./artifacts --experiment inter_session --model_name speechnet
 ```
 
 
