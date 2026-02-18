@@ -71,7 +71,7 @@ This reads your data and create windows and features, which will be used to run 
 
 Random Forest
 ```bash
-python scripts/30_run_experiments.py \
+python reproduce_paper_scripts/30_run_experiments.py \
 --base_config config/paper_models_config.yaml \
 --model_config config/models_configs/random_forest_config.yaml \ 
 --data_dir ./data --artifacts_dir ./artifacts --experiment global
@@ -79,9 +79,9 @@ python scripts/30_run_experiments.py \
 
 SpeechNet
 ```bash
-python scripts/30_run_experiments.py 
+python reproduce_paper_scripts/30_run_experiments.py 
 --base_config config/paper_models_config.yaml \ 
---model_config config/models_configs/random_forest_config.yaml \ 
+--model_config config/models_configs/speechnet_config.yaml \ 
 --data_dir ./data --artifacts_dir ./artifacts --experiment global
 ```
 
@@ -93,7 +93,7 @@ Random Forest
 python reproduce_paper_scripts/30_run_experiments.py 
 --base_config config/paper_models_config.yaml 
 --model_config config/models_configs/random_forest_config.yaml 
---data_dir /scratch2/gspacone/DATA_DIR_SILENT 
+--data_dir ./data 
 --artifacts_dir artifacts 
 --experiment inter_session --inter_session_windows_s 1.4
 ```
@@ -102,8 +102,8 @@ Speech Net
 ```bash
 python reproduce_paper_scripts/30_run_experiments.py 
 --base_config config/paper_models_config.yaml 
---model_config config/models_configs/random_forest_config.yaml 
---data_dir /scratch2/gspacone/DATA_DIR_SILENT 
+--model_config config/models_configs/speechnet_config.yaml 
+--data_dir ./data
 --artifacts_dir artifacts --experiment inter_session
 ```
 Note: this will run by default all the ablations on the window size. Window sizes: [0.4, 0.6, 0.8, 1.0, 1.2, 1.4].
@@ -112,14 +112,14 @@ You can pass a single float value if you want to train only on one specific wind
 
 #### Training From Scratch
 ```bash
-python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir /scratch2/gspacone/DATA_DIR_SILENT --artifacts_dir artifacts --experiment train_from_scratch --tfs_config config/paper_train_from_scratch_config.yaml --tfs_windows_s 1.4
+python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir ./data--artifacts_dir artifacts --experiment train_from_scratch --tfs_config config/paper_train_from_scratch_config.yaml --tfs_windows_s 1.4
 ```
 Adjust tfs_windows_s to select a different window size
 
 
 #### Inter-Session Fine Tuning
 ```bash
-python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir /scratch2/gspacone/DATA_DIR_SILENT --artifacts_dir artifacts --experiment inter_session_ft --ft_config config/paper_ft_config.yaml --ft_windows_s 1.4
+python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir ./data --artifacts_dir artifacts --experiment inter_session_ft --ft_config config/paper_ft_config.yaml --ft_windows_s 1.4
 ```
 Adjust ft_windows_s to select a different window size
 
@@ -138,7 +138,7 @@ python utils/III_results_analysis/I_global_intersession_analysis.py --artifacts_
 ```
 SpeechNet:
 ```bash
-  python utils/III_results_analysis/I_global_intersession_analysis.py --artifacts_dir ./artifacts --experiment global --model_name random_forest --model_name_id w1400ms --plot_confusion_matrix --transparent
+  python utils/III_results_analysis/I_global_intersession_analysis.py --artifacts_dir ./artifacts --experiment global --model_name speechnet --model_name_id w1400ms --plot_confusion_matrix --transparent
 ```
 
 Switch experiment between global and inter_session.
