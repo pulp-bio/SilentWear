@@ -333,6 +333,18 @@ def summary_to_csv(summary_ft, summary_baseline, res_save_folder, condition, mod
     res_save_folder = Path(res_save_folder)
     res_save_folder.mkdir(parents=True, exist_ok=True)
     df_summary.to_csv(res_save_folder / f"ft_bs_results_{condition}_{model_to_select}_{win_size}.csv", index=False)
+
+
+    print("Fine tuned results")
+    print(df_summary["subj_acc_means"].iloc[-1])
+    print("Average")
+    print(np.mean(df_summary["subj_acc_means"].iloc[-1]))
+
+    print("Non fine tuned results")
+    print(df_summary["subjs_acc_means_noft"].iloc[-1])
+    print("Average")
+    print(np.mean(df_summary["subjs_acc_means_noft"].iloc[-1]))
+
     return df_summary
 
 
@@ -616,6 +628,7 @@ def main():
     fig_save_folder.mkdir(parents=True, exist_ok=True)
 
     for condition in args.conditions:
+        print("Condition:", condition)
         # ---- FT ----
         summary_ft = load_results(
             base_model_folder=base_ft_model_folder,
@@ -639,6 +652,7 @@ def main():
             inter_session_id = None, 
             type="train_from_scratch",
         )
+        
 
         df_summary = summary_to_csv(summary_ft, summary_baseline, res_save_folder, condition, args.model_name)
 
@@ -649,9 +663,9 @@ def main():
             ft_summary=summary_ft,
             scratch_summary=summary_baseline,
             show_no_ft=True,
-            save_path=fig_save_folder / f"avg_{condition}_{args.model_name}_{model_name_id}.svg",
+            save_path=fig_save_folder / f"avg_{condition}_{args.model_name}_{model_name_id}.pdf",
         )
-
+        print("\n\n")
 
 if __name__ == "__main__":
     main()
