@@ -13,7 +13,7 @@
 </tr>
 </table>
 
-### ⚙️ General Overview of the System
+## ⚙️ General Overview of the System
 *Silent-Wear* relies on the following building blocks:
 
 🔧 **BIOGAP-Ultra** — an ultra-low-power acquisition system for biopotential acquisition.  
@@ -26,15 +26,12 @@ System overview: https://ieeexplore.ieee.org/abstract/document/11330464 (arXiv: 
 Version used in this work: https://github.com/pulp-bio/biogui/tree/sensors_speech
 
 📝 **This repository**  
-This repository contains the source code used to preprocess EMG data and develop models that predict *8 HMI* commands from *vocalized* and *silent* EMG, in line with the associated paper (arXiv: TBD).
+This repository contains the source code used to preprocess EMG data and develop models that predict *8 HMI* commands from *vocalized* and *silent* EMG, in line with the associated paper (arXiv: coming soon).
 
 Specifically, it allows you to:
 1. **Preprocess EMG data** and prepare it for model training using our publicly available dataset: https://huggingface.co/datasets/PulpBio/SilentWear
 2. **Replicate the results** reported in the paper (arXiv: coming soon). See details below.
 3. **Extend the pipeline** with your own models (instructions below).
-
-
-
 
 
 ## 🛠 Get Started: Environment Setup
@@ -62,37 +59,57 @@ pip install -r requirements.txt
 ```
 
 
-## Donwload the Data
+## 🗃️ Donwload the Data
 
 You can download the data used in this work from: https://huggingface.co/datasets/PulpBio/SilentWear
 
 The code expects the Hugging Face release layout:
 
 ```text
-DATA_DIR/
+SilentWear/
 ├── data_raw_and_filt/
 └── wins_and_features/
 ```
-
-Before starting your experiments, change the data paths in: ```config/paper_models_config.yaml``` and ```config/create_windows.yaml```
+Further description on the content of the dataset are available at: https://huggingface.co/datasets/PulpBio/SilentWear/blob/main/README.md
+Before running the experiments, updayes the data paths in:
+```bash 
+config/paper_models_config.yaml
+config/create_windows.yaml
+```
 
 If you want to collect your own data using your own recordings from, see **Optional: raw data preprocessing** below.
 
-## Reproduce Paper Results
-The ```script``` folder allows to reproduce the results of the paper. </br>
+## 📊 Reproduce Paper Results
+The ```reproduce_paper_scripts``` folder allows to reproduce the results of the paper: (arXiv: coming soon) . </br>
 
-### Step 1: Prepare EMG-windows and (optionally) features
+### 1️⃣: Prepare EMG-windows and (optionally) features
 
 ```bash
 cd reproduce_paper_scripts
 python 20_make_windows_and_features.py --data_dir ./path_to_your_data
 ```
 
-This reads your data and create windows and features, which will be used to run the ITR ablations. 
+This script is responsible to:
 
-### Step 2: Run Experiments
+This script:
 
-#### Global Evaluation Setting
+- Reads EMG recordings
+
+- Generates time windows with user-selectable lengths
+
+- Optionally extracts time-domain and frequency-domain features for classical ML models
+
+### 2️⃣ Run Experiments
+
+In our work, we conduct four experiments experiments:
+
+#### 1. Global Evaluation Setting
+
+<p align="left">
+  <img src="extras/global.gif" width="200">
+</p>
+
+
 
 Random Forest
 ```bash
@@ -135,7 +152,7 @@ Adjust ft_windows_s to select a different window size
 
 
 
-### Step 3: Generate results 
+### 3️⃣: Generate results 
 
 Run these commands to generate the results
 
@@ -225,7 +242,7 @@ If you use this work, we strongly encourage you to cite:
   url = {https://arxiv.org/placeholder}
 }
 ```
-```
+```bibtex
 @INPROCEEDINGS{meier_wearneck_26,
   author={Meier, Fiona and Spacone, Giusy and Frey, Sebastian and Benini, Luca and Cossettini, Andrea},
   booktitle={2025 IEEE SENSORS}, 
@@ -236,4 +253,16 @@ If you use this work, we strongly encourage you to cite:
   pages={1-4},
   keywords={Wireless communication;Vocabulary;Wireless sensor networks;Accuracy;Low power electronics;Electromyography;Robustness;Decoding;Wearable sensors;Textiles;EMG;wearable;ultra-low power;HMI;speech;silent speech},
   doi={10.1109/SENSORS59705.2025.11330464}}
+```
+```bibtex
+@ARTICLE{11346484,
+  author={Frey, Sebastian and Spacone, Giusy and Cossettini, Andrea and Guermandi, Marco and Schilk, Philipp and Benini, Luca and Kartsch, Victor},
+  journal={IEEE Transactions on Biomedical Circuits and Systems}, 
+  title={BioGAP-Ultra: A Modular Edge-AI Platform for Wearable Multimodal Biosignal Acquisition and Processing}, 
+  year={2026},
+  volume={},
+  number={},
+  pages={1-17},
+  keywords={Electrocardiography;Biomedical monitoring;Monitoring;Electromyography;Electroencephalography;Artificial intelligence;Heart rate;Estimation;Temperature measurement;Hardware;biopotential;ExG;photoplethysmogram;Human-Machine Interface;sensor fusion},
+  doi={10.1109/TBCAS.2026.3652501}}
 ```
