@@ -309,3 +309,7 @@ If you use this work, we strongly encourage you to cite:
   keywords={Electrocardiography;Biomedical monitoring;Monitoring;Electromyography;Electroencephalography;Artificial intelligence;Heart rate;Estimation;Temperature measurement;Hardware;biopotential;ExG;photoplethysmogram;Human-Machine Interface;sensor fusion},
   doi={10.1109/TBCAS.2026.3652501}}
 ```
+
+
+## License
+All files are released under the Apache-2.0 license (see LICENSE)
