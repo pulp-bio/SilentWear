@@ -311,5 +311,5 @@ If you use this work, we strongly encourage you to cite:
 ```
 
 
-## License
-All files are released under the Apache-2.0 license (see LICENSE)
+## 📄 License
+This project is licensed under the Apache License 2.0 — see the [LICENSE](LICENSE) file for details.
