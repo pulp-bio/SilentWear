@@ -99,7 +99,7 @@ This script:
 
 - Optionally extracts time-domain and frequency-domain features for classical ML models
 
-### 2️⃣ Run Experiments
+### 2️⃣: Run Experiments
 
 In our work, we conduct four experiments experiments:
 
@@ -110,45 +110,60 @@ In our work, we conduct four experiments experiments:
 </p>
 
 
-
-Random Forest
+Train **Random Forest** models: 
 ```bash
 python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/random_forest_config.yaml --data_dir ./data --artifacts_dir ./artifacts --experiment global
 ```
 
-SpeechNet
+Train **SpeechNet** models: 
 ```bash
 python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir ./data --artifacts_dir ./artifacts --experiment global
 ```
 
 
 #### Inter-Session Evaluation Setting
+<p align="left">
+  <img src="extras/inter_session.gif" width="200">
+</p>
 
-Random Forest
+Train **Random Forest** models: 
 ```bash
 python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/random_forest_config.yaml --data_dir ./data --artifacts_dir artifacts --experiment inter_session --inter_session_windows_s 1.4
 ```
 
-Speech Net
+Train **SpeechNet** models: 
 ```bash
 python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir ./data --artifacts_dir artifacts --experiment inter_session
 ```
+
 Note: this will run by default all the ablations on the window size. Window sizes: [0.4, 0.6, 0.8, 1.0, 1.2, 1.4].
-You can pass a single float value if you want to train only on one specific window size. 
+
+You can pass a single float value to ```inter_session_windows_s``` if you want to train only on one specific window size. 
 
 
 #### Training From Scratch
+
+<p align="left">
+  <img src="extras/from_scratch.gif" width="200">
+</p>
+
+
 ```bash
 python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir ./data--artifacts_dir artifacts --experiment train_from_scratch --tfs_config config/paper_train_from_scratch_config.yaml --tfs_windows_s 1.4
 ```
-Adjust tfs_windows_s to select a different window size
+Adjust ```tfs_windows_s``` to select a different window size. 
 
 
 #### Inter-Session Fine Tuning
+
+<p align="left">
+  <img src="extras/incremental_ft.gif" width="200">
+</p>
+
 ```bash
 python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir ./data --artifacts_dir artifacts --experiment inter_session_ft --ft_config config/paper_ft_config.yaml --ft_windows_s 1.4
 ```
-Adjust ft_windows_s to select a different window size
+Adjust ```ft_windows_s``` to select a different window size. 
 
 
 
@@ -178,27 +193,27 @@ Switch experiment between global and inter_session.
 
 #### Fine-Tuning + From -Scratch Evaluations
 ```bash
-python utils/III_results_analysis/III_ft_results.py --artifacts_dir ./artifacts --model_name speechnet --model_base_id w1400ms --inter_session_model_id model_1
---ft_id ft_config_0 --bs_id bs_config_0 
+python utils/III_results_analysis/III_ft_results.py --artifacts_dir ./artifacts --model_name speechnet --model_base_id w1400ms --inter_session_model_id model_1 --ft_id ft_config_0 --bs_id bs_config_0 
 ```
 Note:
 
 If you runned multiple fine tuning or baseline rounds for the same window size, adjust ft_id and bs_id accordingly.
 If you ran the inter session models multiple times, chage the inter_session_model_id
 
-### Run minimal experiments.
+
+
+##  Run minimal experiments.
 
 The ```script``` folder is built around the standalone scripts contained in:
 
-a) ```utils/II_feature_extraction``` and ```utils/III_results_analysis```
+- ```utils/II_feature_extraction``` and ```utils/III_results_analysis```
 
-b) ```offline_experiments```
+- ```offline_experiments```
 
 The script in these folder can be runned independently
 
-They can be used as a starting point to **test your own model**
+They can be used as a starting point to **test your own model**.
 
----
 
 ## Extras: raw data preprocessing (only if you collected new data)
 
@@ -210,23 +225,51 @@ utils/I_data_preparation/data_preparation.py
 
 Then run windowing/feature extraction as above.
 
+
+
+## 🤝 Contributing
+
+*Silent-Wear* aims to foster a community-driven effort toward advancing EMG-based Human–Machine Interfaces (HMI).
+
+We strongly encourage contributions from researchers, developers, and practitioners.
+
+You can contribute in several ways:
+
 ---
 
+### 📊 1. Collect and Share Your Own Data
+
+You can replicate the data collection protocol using the open-source **BIOGUI** platform:
+
+https://github.com/pulp-bio/biogui/tree/sensors_speech
+
+We welcome:
+- New subjects
+- Additional commands
+- Different recording conditions
+- Cross-lingual or multilingual datasets
+
+If you collect new data, please open an issue to discuss integration.
 
 
+### 🧠 2. Develop and Integrate Your Own Models
 
-## 🛠 Contribute
+To integrate a new model:
+1. Add your configuration file under `config/models_configs/`
+2. Implement your model in the `models/` directory
+3. Add your model factory to `models/models_factory.py` file
+3. Submit a pull request with a short description of your approach and results
 
-*Silent-Wear* is aimed to promote a community-effort to develop novel EMG-based HMI.
+---
 
-We strongly encourage you to *contribute* to our project.
+### 🛠 3. Improve the Pipeline
 
-How to contribute?
-
-### Collect and add your-own data: 
-You can use the open source bio-gui to replicate the data collection protocol employed in this work. 
-
-### Develop your own model 
+Contributions are also welcome for:
+- Data preprocessing
+- Feature extraction
+- Evaluation protocols
+- Documentation improvements
+- Bug fixes and performance optimizations
 
 
 ## Citation
