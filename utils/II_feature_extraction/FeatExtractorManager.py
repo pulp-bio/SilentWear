@@ -1,9 +1,26 @@
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 Giovanni Pollo
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """Feature extraction functions for EMG signals.
 
 This module contains classes to compute time-domain, frequency-domain,
 and wavelet-based features from EMG signal windows.
-
-Copyright 2026 Giusy Spacone, Giovanni Pollo
 """
 
 from typing import Dict, Tuple, Optional
@@ -56,10 +73,7 @@ class FeatureRegistry:
         """Raise error if any feature is unsupported."""
         invalid = [f for f in features if f not in cls.ALL]
         if invalid:
-            raise ValueError(
-                f"Invalid feature(s): {invalid}. Allowed features: {cls.ALL}"
-            )
-
+            raise ValueError(f"Invalid feature(s): {invalid}. Allowed features: {cls.ALL}")
 
 
 class TimeDomainFeatureExtractor:
@@ -203,7 +217,7 @@ class FeatureExtractor:
         nperseg: int = 100,
         low_freq_band: Optional[Tuple[int, int]] = None,
         high_freq_band: Optional[Tuple[int, int]] = None,
-        #config: Optional[EMGConfig] = None,
+        # config: Optional[EMGConfig] = None,
     ):
         """Initialize feature extractor.
 
@@ -256,9 +270,7 @@ class FeatureExtractor:
         return features
 
     @staticmethod
-    def _build_feature_name(
-        feature_name: str, window_num: int, channel_tag: str
-    ) -> str:
+    def _build_feature_name(feature_name: str, window_num: int, channel_tag: str) -> str:
         """Build feature name with window number and channel tag.
 
         Args:
@@ -270,5 +282,3 @@ class FeatureExtractor:
             Formatted feature name.
         """
         return f"{feature_name}_{window_num}_{channel_tag}"
-
-

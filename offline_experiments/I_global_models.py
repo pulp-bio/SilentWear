@@ -1,3 +1,12 @@
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 Global Experiment Evaluation Setting
 
@@ -19,7 +28,7 @@ import sys
 import json
 from pathlib import Path
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import yaml
 import pandas as pd
@@ -34,7 +43,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from offline_experiments.Model_Master import Model_Master
 from models.seeds import TORCH_MANUAL_SEED, RANDOM_SEED, RGN_SEED
 from utils.general_utils import load_all_h5files_from_folder, print_dataset_summary_statistics
-from offline_experiments.general_utils import *  
+from offline_experiments.general_utils import *
 
 
 class Global_Model_Trainer:
@@ -110,33 +119,57 @@ class Global_Model_Trainer:
         if not self.all_subjects_models:
             if self.condition != "voc_and_silent":
                 self.data_dire_proc.append(
-                    self.main_dire / win_feats_root / str(self.sub_id) / str(self.condition) / f"WIN_{self.window_size_ms}"
+                    self.main_dire
+                    / win_feats_root
+                    / str(self.sub_id)
+                    / str(self.condition)
+                    / f"WIN_{self.window_size_ms}"
                 )
             else:
                 self.data_dire_proc.append(
-                    self.main_dire / win_feats_root / str(self.sub_id) / "silent" / f"WIN_{self.window_size_ms}"
+                    self.main_dire
+                    / win_feats_root
+                    / str(self.sub_id)
+                    / "silent"
+                    / f"WIN_{self.window_size_ms}"
                 )
                 self.data_dire_proc.append(
-                    self.main_dire / win_feats_root / str(self.sub_id) / "vocalized" / f"WIN_{self.window_size_ms}"
+                    self.main_dire
+                    / win_feats_root
+                    / str(self.sub_id)
+                    / "vocalized"
+                    / f"WIN_{self.window_size_ms}"
                 )
         else:
             for curr_sub_id in self.sub_id:
                 if self.condition != "voc_and_silent":
                     self.data_dire_proc.append(
-                        self.main_dire / win_feats_root / str(curr_sub_id) / str(self.condition) / f"WIN_{self.window_size_ms}"
+                        self.main_dire
+                        / win_feats_root
+                        / str(curr_sub_id)
+                        / str(self.condition)
+                        / f"WIN_{self.window_size_ms}"
                     )
                 else:
                     self.data_dire_proc.append(
-                        self.main_dire / win_feats_root / str(curr_sub_id) / "silent" / f"WIN_{self.window_size_ms}"
+                        self.main_dire
+                        / win_feats_root
+                        / str(curr_sub_id)
+                        / "silent"
+                        / f"WIN_{self.window_size_ms}"
                     )
                     self.data_dire_proc.append(
-                        self.main_dire / win_feats_root / str(curr_sub_id) / "vocalized" / f"WIN_{self.window_size_ms}"
+                        self.main_dire
+                        / win_feats_root
+                        / str(curr_sub_id)
+                        / "vocalized"
+                        / f"WIN_{self.window_size_ms}"
                     )
 
         for d in self.data_dire_proc:
             if not d.exists():
                 raise FileNotFoundError(
-                    f"Windows/features directory does not exist: {d}. " 
+                    f"Windows/features directory does not exist: {d}. "
                     f"Did you run scripts/20_make_windows_and_features.py for window={self.window_size_ms}ms?"
                 )
 
@@ -179,7 +212,9 @@ class Global_Model_Trainer:
 
         raise ValueError(f"Unknown cv.mode='{mode}' (expected 'leave_one_batch_out')")
 
-    def _cv_leave_one_batch_out(self, df: pd.DataFrame, val_size: float = 0.3, seed: int = 0) -> List[Dict[str, Any]]:
+    def _cv_leave_one_batch_out(
+        self, df: pd.DataFrame, val_size: float = 0.3, seed: int = 0
+    ) -> List[Dict[str, Any]]:
         print("lobo")
         self.cv_summaries = []
         batches = df["batch_id"].unique()
@@ -193,7 +228,11 @@ class Global_Model_Trainer:
             if self.include_rest:
                 min_samples = train_val_data["Label_int"].value_counts().min()
                 idx_rest = train_val_data[train_val_data["Label_str"] == "rest"].index.values
-                index_rest_ds = train_val_data[train_val_data["Label_str"] == "rest"].sample(n=min_samples, random_state=seed).index.values
+                index_rest_ds = (
+                    train_val_data[train_val_data["Label_str"] == "rest"]
+                    .sample(n=min_samples, random_state=seed)
+                    .index.values
+                )
                 idx_to_drop = np.setdiff1d(idx_rest, index_rest_ds)
                 train_val_data = train_val_data.drop(index=idx_to_drop)
 
@@ -245,7 +284,9 @@ class Global_Model_Trainer:
         self.model_master.register_model()
 
         save_model_path = self.model_dire / f"{mode}_fold_{fold_id+1}"
-        model, metrics, y_true, y_pred = self.model_master.train_model(test=True, save_model_path=save_model_path)
+        model, metrics, y_true, y_pred = self.model_master.train_model(
+            test=True, save_model_path=save_model_path
+        )
 
         row_summary: Dict[str, Any] = {
             "cv_mode": mode,
@@ -273,7 +314,9 @@ class Global_Model_Trainer:
         # Load data for the current subject/condition
         df = pd.DataFrame()
         for curr_data_dire in self.data_dire_proc:
-            df_curr = load_all_h5files_from_folder(curr_data_dire, key="wins_feats", print_statistics=False)
+            df_curr = load_all_h5files_from_folder(
+                curr_data_dire, key="wins_feats", print_statistics=False
+            )
             df = pd.concat((df, df_curr), ignore_index=True)
 
         self.df = df.reset_index(drop=True)
@@ -291,7 +334,9 @@ def main():
     """Standalone entrypoint."""
     config_root = REPO_ROOT / "config"
     base_config_path = config_root / "paper_models_config.yaml"
-    model_config_path = config_root / "models_configs" / "random_forest_config.yaml"                # or speechnet_config.yaml
+    model_config_path = (
+        config_root / "models_configs" / "random_forest_config.yaml"
+    )  # or speechnet_config.yaml
 
     base_cfg = yaml.safe_load(base_config_path.read_text())
     model_cfg = yaml.safe_load(model_config_path.read_text())

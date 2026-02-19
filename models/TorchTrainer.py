@@ -1,10 +1,19 @@
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 Main Trainer for Deep Learning Models (pytorch based)
 """
 
-import sys
 from pathlib import Path
-PROJECT_ROOT = Path(__file__).resolve().parents[1]   
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 from models.seeds import *
 from models.utils import compute_metrics
 from typing import Optional
@@ -12,8 +21,8 @@ from pathlib import Path
 import numpy as np
 from torch.utils.data import TensorDataset, DataLoader
 import torch.nn as nn
-import pandas as pd 
 import hashlib
+
 
 class TorchTrainer:
     def __init__(self, estimator, df_train, df_val, df_test, train_cfg, label_col):
@@ -26,15 +35,12 @@ class TorchTrainer:
         self.test_loader = None
         self.train_cfg = train_cfg
         self.label_col = label_col
-        
 
-    def create_dataloader_from_df(self, 
-                                df, 
-                                batch_size=32,
-                                shuffle=False,              # we shuffle outside
-                                num_workers=0):
+    def create_dataloader_from_df(
+        self, df, batch_size=32, shuffle=False, num_workers=0  # we shuffle outside
+    ):
         """
-        Function to create a dataloader from a givne df. 
+        Function to create a dataloader from a givne df.
         """
         if df is None:
             return None
@@ -42,15 +48,16 @@ class TorchTrainer:
             return None
         X_df = df.drop(columns=self.label_col)
         print(X_df.columns)
-        
 
         # (N, T) per channel, then stack to (N, C, T)
-        X_np = np.stack([np.stack(X_df[col].to_numpy()) for col in X_df.columns], axis=1).astype(np.float32)
+        X_np = np.stack([np.stack(X_df[col].to_numpy()) for col in X_df.columns], axis=1).astype(
+            np.float32
+        )
         # X_np shape: (N, C, T)
-        
+
         y_np = df[self.label_col].to_numpy()
 
-        X_torch = torch.from_numpy(X_np)          # (N, C, T)
+        X_torch = torch.from_numpy(X_np)  # (N, C, T)
         print("Tensor data with shape", X_torch.shape)
         y_torch = torch.from_numpy(y_np)
 
@@ -62,11 +69,10 @@ class TorchTrainer:
             batch_size=batch_size,
             shuffle=shuffle,
             num_workers=num_workers,
-            drop_last=False
+            drop_last=False,
         )
 
         return dataloader
-
 
     def build_scheduler(self, optimizer, scheduler_cfg, num_epochs):
         if not scheduler_cfg:
@@ -88,56 +94,56 @@ class TorchTrainer:
                 mode=scheduler_cfg.get("mode", "min"),
                 factor=float(scheduler_cfg.get("factor", 0.1)),
                 patience=int(scheduler_cfg.get("patience", 10)),
-            
                 verbose=bool(scheduler_cfg.get("verbose", True)),
             )
 
         raise ValueError(f"Unknown scheduler: {name}")
 
-
-
-    def train_loop(self, 
+    def train_loop(
+        self,
         model,
         trainloader,
         valoader,
         train_cfg,
-        save_path, 
-        ):
+        save_path,
+    ):
 
         if torch.cuda.is_available():
-            device = 'cuda'
-            torch.device('cuda')
+            device = "cuda"
+            torch.device("cuda")
             print("Running on cuda")
-            print(torch.cuda.device_count()); print(torch.cuda.get_device_name(0))
+            print(torch.cuda.device_count())
+            print(torch.cuda.get_device_name(0))
         else:
-            torch.device('cpu')
-            device = 'cpu'
+            torch.device("cpu")
+            device = "cpu"
             print("Running on CPU")
-
 
         criterion = nn.CrossEntropyLoss()
 
         # ---- Read config ----
         num_epochs = int(train_cfg.get("num_epochs", 50))
 
-        #optimizer_cfg = train_cfg.get("optimizer", None) or {"name": "adam", "lr": 1e-3}
-        optimizer_cfg = train_cfg.get("optimizer_cfg", None) or train_cfg.get("optimizer", None) or {"name":"adam","lr":1e-3}
-        
+        # optimizer_cfg = train_cfg.get("optimizer", None) or {"name": "adam", "lr": 1e-3}
+        optimizer_cfg = (
+            train_cfg.get("optimizer_cfg", None)
+            or train_cfg.get("optimizer", None)
+            or {"name": "adam", "lr": 1e-3}
+        )
+
         opt_name = str(optimizer_cfg.get("name", "adam")).lower()
 
         lr = float(optimizer_cfg["lr"])
         weight_decay = float(train_cfg["weight_decay"])
-        #betas = optimizer_cfg.get("betas", (0.9, 0.999))
+        # betas = optimizer_cfg.get("betas", (0.9, 0.999))
 
-        
         print("Model will be trained for:", num_epochs, "epochs")
-        early_stop_patience = train_cfg.get("early_stop_patience",5)
+        early_stop_patience = train_cfg.get("early_stop_patience", 5)
         print("Early stop patienence set to:", early_stop_patience)
-        print("Set optimizer", opt_name, "|lr:",lr, "|wd:", weight_decay)
+        print("Set optimizer", opt_name, "|lr:", lr, "|wd:", weight_decay)
         scheduler_cfg = train_cfg.get("scheduler", None)
         print("Set scheduler:", scheduler_cfg)
-        
-        
+
         # ----- Optimizer -----
         if opt_name == "adamw":
             optimizer = torch.optim.AdamW(
@@ -158,7 +164,6 @@ class TorchTrainer:
 
         # ----- Scheduler (optional) -----
         scheduler = self.build_scheduler(optimizer, scheduler_cfg, num_epochs)
-
 
         # -------- Zero-epoch (before training) evaluation --------
         model.eval()
@@ -184,7 +189,6 @@ class TorchTrainer:
             val_acc_0 = np.mean(np.array(val_preds) == np.array(val_tgts))
 
         print(f"PRE-TRAIN | TRAIN ACC: {train_acc_0:.3f} | VAL ACC: {val_acc_0:.3f}")
-
 
         # -------- Real Training Starts --------
         train_losses = []
@@ -228,8 +232,7 @@ class TorchTrainer:
             running_loss_val = 0.0
             val_batches = 0
             val_predictions = []
-            val_targets = []    
-            
+            val_targets = []
 
             with torch.no_grad():
                 for x, y in valoader:
@@ -238,7 +241,7 @@ class TorchTrainer:
 
                     outputs = model(x)
                     loss = criterion(outputs, y)
-                    
+
                     running_loss_val += loss.item()
                     val_batches += 1
 
@@ -254,7 +257,7 @@ class TorchTrainer:
             # ----- Scheduler step (safe fallback) -----
             if scheduler is not None:
                 if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                    #print("stepping scheduler ReduceLROnPlateau")
+                    # print("stepping scheduler ReduceLROnPlateau")
                     current_lr = scheduler.get_last_lr()[0]
                     scheduler.step(avg_val_loss)
                 else:
@@ -278,19 +281,26 @@ class TorchTrainer:
                 if patience >= early_stop_patience:
                     print("Hit early stopping.")
                     break
-            if scheduler is not None and isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                print(f"{epoch} TRAIN loss: {avg_train_loss:.3f} | VAL loss: {avg_val_loss:.3f} | TRAIN ACC: {train_accuracy:.3f} | VAL ACC: {val_accuracy:.3f} | LR: {current_lr:.2e}")
+            if scheduler is not None and isinstance(
+                scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau
+            ):
+                print(
+                    f"{epoch} TRAIN loss: {avg_train_loss:.3f} | VAL loss: {avg_val_loss:.3f} | TRAIN ACC: {train_accuracy:.3f} | VAL ACC: {val_accuracy:.3f} | LR: {current_lr:.2e}"
+                )
             else:
-                print(f"{epoch} TRAIN loss: {avg_train_loss:.3f} | VAL loss: {avg_val_loss:.3f} | TRAIN ACC: {train_accuracy:.3f} | VAL ACC: {val_accuracy:.3f}")
+                print(
+                    f"{epoch} TRAIN loss: {avg_train_loss:.3f} | VAL loss: {avg_val_loss:.3f} | TRAIN ACC: {train_accuracy:.3f} | VAL ACC: {val_accuracy:.3f}"
+                )
             train_losses.append(avg_train_loss)
             val_losses.append(avg_val_loss)
 
-        epochs_ran = len(train_losses)                      # how many epochs actually executed
+        epochs_ran = len(train_losses)  # how many epochs actually executed
         best_epoch_1based = (best_state["epoch"] + 1) if best_state is not None else None
 
         # Save best model and loss history (UNCHANGED)
         if save_path is not None and best_state is not None:
-            best_state.update({
+            best_state.update(
+                {
                     "train_loss": train_losses,
                     "val_loss": val_losses,
                     "train_acc": train_accs,
@@ -300,8 +310,8 @@ class TorchTrainer:
                     "epochs_ran": int(epochs_ran),
                     "best_epoch": int(best_epoch_1based),
                     "early_stop_patience": int(early_stop_patience),
-
-            })
+                }
+            )
             torch.save(best_state, save_path)
 
         # Optionally restore best model weights before returning (UNCHANGED)
@@ -310,9 +320,7 @@ class TorchTrainer:
 
         return model
 
-
-    def fit(self, 
-        save_model_path : Optional[Path] = None):
+    def fit(self, save_model_path: Optional[Path] = None):
         """
         Train Pytorch model on features X and labels y.
         """
@@ -326,16 +334,21 @@ class TorchTrainer:
         # Fit estimator
         if save_model_path is not None:
             save_model_path = Path(save_model_path)
-            model_path = save_model_path if save_model_path.suffix == ".pt" else save_model_path.with_suffix(".pt")
+            model_path = (
+                save_model_path
+                if save_model_path.suffix == ".pt"
+                else save_model_path.with_suffix(".pt")
+            )
         else:
-            model_path = None  
-            
-        self.model = self.train_loop(self.model, self.train_loader, self.val_loader, self.train_cfg, model_path)
+            model_path = None
+
+        self.model = self.train_loop(
+            self.model, self.train_loader, self.val_loader, self.train_cfg, model_path
+        )
         return self.model
 
-
     def evaluate(self):
-        
+
         model = self.model
         device = next(model.parameters()).device
         model.eval()
@@ -349,8 +362,8 @@ class TorchTrainer:
                 inputs = inputs.to(device)
                 targets = targets.to(device)
 
-                outputs = model(inputs)             # logits: (batch_size, num_classes)
-                preds = outputs.argmax(dim=1)       # predicted class index
+                outputs = model(inputs)  # logits: (batch_size, num_classes)
+                preds = outputs.argmax(dim=1)  # predicted class index
 
                 all_targets.append(targets.cpu())
                 all_preds.append(preds.cpu())
@@ -364,33 +377,31 @@ class TorchTrainer:
 
         return metrics, y_true, y_pred
 
-
-
     def check_data_splits(self):
         """
         Verify that train/val/test splits are disjoint.
         Detects overlap by index and by hashing sample content.
         Safe if one of the splits is None or empty.
         """
-        #print("Checking data split integrity...")
+        # print("Checking data split integrity...")
 
         splits = {
             "TRAIN": getattr(self, "df_train", None),
-            "VAL":   getattr(self, "df_val", None),
-            "TEST":  getattr(self, "df_test", None),
+            "VAL": getattr(self, "df_val", None),
+            "TEST": getattr(self, "df_test", None),
         }
 
         # Keep only non-empty DataFrames
         valid = {}
         for name, df in splits.items():
             if df is None:
-                #print(f" - {name}: None (skipping)")
+                # print(f" - {name}: None (skipping)")
                 continue
             if df.empty:
-                #print(f" - {name}: empty (skipping)")
+                # print(f" - {name}: empty (skipping)")
                 continue
             valid[name] = df
-            #print(f" - {name}: {len(df)} samples")
+            # print(f" - {name}: {len(df)} samples")
 
         if len(valid) < 2:
             print("Not enough splits present to compare overlap (need at least 2).")
@@ -411,7 +422,7 @@ class TorchTrainer:
                     print(f"Overlap {a}–{b} (index): {len(overlap)} samples")
                 else:
                     continue
-                    #print(f"No index overlap detected for {a}–{b}.")
+                    # print(f"No index overlap detected for {a}–{b}.")
 
         # ------------------------------------------------------------
         # 2) Check overlap by sample content (robust)
@@ -420,6 +431,7 @@ class TorchTrainer:
             """
             Create a stable hash per row even if cells contain numpy arrays.
             """
+
             def row_fingerprint(row) -> str:
                 h = hashlib.blake2b(digest_size=16)
                 for v in row:
@@ -448,7 +460,7 @@ class TorchTrainer:
                 if overlap:
                     print(f"Content overlap {a}–{b}: {len(overlap)} samples")
                 else:
-                    #print(f"No content overlap detected for {a}–{b}.")
+                    # print(f"No content overlap detected for {a}–{b}.")
                     continue
 
         print("Split integrity check complete.\n")
@@ -456,8 +468,9 @@ class TorchTrainer:
 
 ################################################### Standalone functions ########################
 
-def evaluate_model(model,test_loader):
-    
+
+def evaluate_model(model, test_loader):
+
     model = model
     device = next(model.parameters()).device
     model.eval()
@@ -471,8 +484,8 @@ def evaluate_model(model,test_loader):
             inputs = inputs.to(device)
             targets = targets.to(device)
 
-            outputs = model(inputs)             # logits: (batch_size, num_classes)
-            preds = outputs.argmax(dim=1)       # predicted class index
+            outputs = model(inputs)  # logits: (batch_size, num_classes)
+            preds = outputs.argmax(dim=1)  # predicted class index
 
             all_targets.append(targets.cpu())
             all_preds.append(preds.cpu())

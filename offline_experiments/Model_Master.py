@@ -1,6 +1,16 @@
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 File Containing Main Model Orchestrator
 """
+
 import sys
 from pathlib import Path
 
@@ -8,18 +18,24 @@ import torch
 import pandas as pd
 import torch.nn as nn
 
-########### Project-level imports 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]   
+########### Project-level imports
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
-PROJECT_ROOT = Path(__file__).resolve().parents[2]     
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 from utils.I_data_preparation.experimental_config import ORIGINAL_LABELS, FS
 from models.models_factory import ModelSpec, build_model_from_spec
-from models.SklearnTrainer import * 
-from models.TorchTrainer import * 
+from models.SklearnTrainer import *
+from models.TorchTrainer import *
 import re
-from offline_experiments.general_utils import feature_names_to_consider, feature_columns_to_consider, reorder_ml_features_by_channel
+from offline_experiments.general_utils import (
+    feature_names_to_consider,
+    feature_columns_to_consider,
+    reorder_ml_features_by_channel,
+)
+
 #######################
+
 
 class Model_Master:
     """
@@ -34,13 +50,15 @@ class Model_Master:
         self.base_config = base_config
         self.model_config = model_config
         # label maps
-        self.original_label_map = ORIGINAL_LABELS.copy() 
-        self.channel_order = self.base_config.get("channel_order", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15])
-        #print(self.channel_order)
-        #print(self.original_label_map)
-        self.train_label_map = None            # train_id -> word
-        self.train_to_orig = None              # train_id -> orig_id
-        self.orig_to_train = None              # orig_id -> train_id (useful for dataset remap)
+        self.original_label_map = ORIGINAL_LABELS.copy()
+        self.channel_order = self.base_config.get(
+            "channel_order", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15]
+        )
+        # print(self.channel_order)
+        # print(self.original_label_map)
+        self.train_label_map = None  # train_id -> word
+        self.train_to_orig = None  # train_id -> orig_id
+        self.orig_to_train = None  # orig_id -> train_id (useful for dataset remap)
         self.num_classes = len(self.original_label_map)
         # Dataset Features or Channels to consider
         self.data_col_to_consider = None
@@ -53,16 +71,15 @@ class Model_Master:
 
         # runtime
         self.device = torch.device(
-            self.base_config.get("runtime", {}).get("device", "cuda" if torch.cuda.is_available() else "cpu")
+            self.base_config.get("runtime", {}).get(
+                "device", "cuda" if torch.cuda.is_available() else "cpu"
+            )
         )
 
         # Datasets
         self.df_train = pd.DataFrame()
         self.df_val = pd.DataFrame()
         self.df_test = pd.DataFrame()
-
-
-
 
     def generate_training_labels(self) -> None:
         """
@@ -76,7 +93,7 @@ class Model_Master:
         original_map = self.original_label_map
 
         # Added distinction w.r.t. S00 (which had different labels)
-        if self.base_config['data']['subject_id'] !='S00':
+        if self.base_config["data"]["subject_id"] != "S00":
             if include_rest:
                 print("Rest inclded")
                 # identity mapping
@@ -88,9 +105,11 @@ class Model_Master:
                 filtered_items = [(k, v) for k, v in original_map.items() if k != 0]
 
                 # train labels become 0..7
-                self.train_label_map = {new_k: word for new_k, (_, word) in enumerate(filtered_items)}
+                self.train_label_map = {
+                    new_k: word for new_k, (_, word) in enumerate(filtered_items)
+                }
                 print(self.train_label_map)
-                
+
                 self.train_to_orig = {
                     new_k: orig_k for new_k, (orig_k, _) in enumerate(filtered_items)
                 }
@@ -98,37 +117,31 @@ class Model_Master:
                     orig_k: new_k for new_k, (orig_k, _) in enumerate(filtered_items)
                 }
         else:
-            if include_rest == False: 
+            if include_rest == False:
                 filtered_items = [(k, v) for k, v in original_map.items() if k != 10]
             else:
                 filtered_items = [(k, v) for k, v in original_map.items()]
             # train labels become 0..7
             self.train_label_map = {new_k: word for new_k, (_, word) in enumerate(filtered_items)}
 
-
-            self.train_to_orig = {
-                new_k: orig_k for new_k, (orig_k, _) in enumerate(filtered_items)
-            }
-            self.orig_to_train = {
-                orig_k: new_k for new_k, (orig_k, _) in enumerate(filtered_items)
-            }
+            self.train_to_orig = {new_k: orig_k for new_k, (orig_k, _) in enumerate(filtered_items)}
+            self.orig_to_train = {orig_k: new_k for new_k, (orig_k, _) in enumerate(filtered_items)}
         self.num_classes = len(self.train_label_map)
         print("Num classes set to:", self.num_classes)
-        
-    
+
     def apply_label_mapping(
-            self, 
-            df: pd.DataFrame,
-            orig_to_train: dict[int, int],
-            orig_col: str = "Label_int",
-            out_col: str = "Label_train",
-            drop_unmapped: bool = True,
-        ) -> pd.DataFrame:
+        self,
+        df: pd.DataFrame,
+        orig_to_train: dict[int, int],
+        orig_col: str = "Label_int",
+        out_col: str = "Label_train",
+        drop_unmapped: bool = True,
+    ) -> pd.DataFrame:
         """
         Map original labels (orig_col) -> training labels (out_col).
         Optionally drop rows whose orig label is not in orig_to_train.
         """
-        
+
         df2 = df.copy()
 
         # map returns NaN for unmapped labels
@@ -143,7 +156,6 @@ class Model_Master:
         return df2
 
     def remap_all_datasets(self, label_col: str = "Label_int") -> None:
-
         """
         Applies orig_to_train mapping to train/val/test and prints summaries.
         Creates column 'Label_train'.
@@ -164,45 +176,45 @@ class Model_Master:
                 orig_to_train=self.orig_to_train,
                 orig_col=label_col,
                 out_col="Label_train",
-                drop_unmapped=True,   # drops rest when include_rest=False
+                drop_unmapped=True,  # drops rest when include_rest=False
             )
             setattr(self, name, df_mapped)
             # ---- Print dataset statistics ----
             self.print_dataset_info(df_mapped, dataset_name=name)
-    
 
     def extract_dataset_train_columns(self):
         """
         Function to return names of the columns contained in the training dataset
         This is needed since ML models use features, DL models use Directly EMG data
-        
-        :param self: 
+
+        :param self:
         """
-        if self.kind == 'ml':
+        if self.kind == "ml":
             # Model config must specify features to consider
             features = feature_names_to_consider(
-                        consider_time_feats=self.model_config.get("time_features", True),
-                        consider_freq_feats=self.model_config.get("freq_features", True),
-                        consider_wavelet_feats=self.model_config.get("wavelet_features", True),
-                    )
+                consider_time_feats=self.model_config.get("time_features", True),
+                consider_freq_feats=self.model_config.get("freq_features", True),
+                consider_wavelet_feats=self.model_config.get("wavelet_features", True),
+            )
 
             cols_train = feature_columns_to_consider(features, self.df_train)
-            cols_test  = feature_columns_to_consider(features, self.df_test)
+            cols_test = feature_columns_to_consider(features, self.df_test)
 
             # sanity: non-empty
             if not cols_train:
-                raise ValueError("No feature columns found in df_train with the selected feature groups.")
+                raise ValueError(
+                    "No feature columns found in df_train with the selected feature groups."
+                )
 
             # ---- ASSERT SAME COLUMNS (exact match) ----
             set_train, set_test = set(cols_train), set(cols_test)
             if set_train != set_test:
                 raise AssertionError("Feature columns don't match between train and test sets.\n")
-            
+
             # ---- NEW APPLY CHANNEL ORDER ----
             cols_train = reorder_ml_features_by_channel(cols_train, self.channel_order)
-            cols_test  = reorder_ml_features_by_channel(cols_test,  self.channel_order)
+            cols_test = reorder_ml_features_by_channel(cols_test, self.channel_order)
 
-            
         elif self.kind == "dl":
             # decide which dataframe to inspect
             if not self.df_train.empty:
@@ -214,8 +226,7 @@ class Model_Master:
 
             # extract all filtered channel columns
             ch_cols = df_ref.columns[
-                df_ref.columns.str.contains(r"^Ch_") &
-                df_ref.columns.str.contains(r"_filt$")
+                df_ref.columns.str.contains(r"^Ch_") & df_ref.columns.str.contains(r"_filt$")
             ]
             ch_cols = list(ch_cols.values)
 
@@ -228,18 +239,18 @@ class Model_Master:
 
             missing = [ch for ch in self.channel_order if ch not in ch_dict]
             if missing:
-                raise ValueError(f"[Model_Master.py] Requested channels {missing} not found in dataset columns.")
+                raise ValueError(
+                    f"[Model_Master.py] Requested channels {missing} not found in dataset columns."
+                )
 
             cols_train = [ch_dict[ch] for ch in self.channel_order]
-        
+
         self.data_col_to_consider = cols_train
-        #print("Training Columns will be: ")
-        #print(self.data_col_to_consider)
+        # print("Training Columns will be: ")
+        # print(self.data_col_to_consider)
         print("Total features:", len(self.data_col_to_consider))
-        
-        
+
         return cols_train
-    
 
     def print_dataset_info(self, df: pd.DataFrame, dataset_name: str) -> None:
         """
@@ -257,16 +268,15 @@ class Model_Master:
 
         print(f"\n== {dataset_name} ==")
 
-        print(f"Contains data from sessions: {df['session_id'].unique()} - Batches: {df['batch_id'].unique()}")
+        print(
+            f"Contains data from sessions: {df['session_id'].unique()} - Batches: {df['batch_id'].unique()}"
+        )
 
         # ---- Distribution summary in one row ----
         counts = df["Label_train"].value_counts().sort_index()
 
         summary = ", ".join(
-            [
-                f"{i}({self.train_label_map.get(i, 'UNK')})={c}"
-                for i, c in counts.items()
-            ]
+            [f"{i}({self.train_label_map.get(i, 'UNK')})={c}" for i, c in counts.items()]
         )
 
         print(f"{dataset_name} label distribution: {summary}")
@@ -282,7 +292,6 @@ class Model_Master:
         # for _, row in unique_pairs.iterrows():
         #     print(f"  {row['Label_train']} → {row['Label_str']}")
 
-
     def register_model(self) -> None:
         """
         Instantiate model based on ModelSpec + context.
@@ -290,19 +299,18 @@ class Model_Master:
         model_name = self.model_config["model"]["name"]
         for suffix in ("_hparam_abl", "_abl", "_hparam_abl_lr"):
             if model_name.endswith(suffix):
-                model_name = model_name[:-len(suffix)]
+                model_name = model_name[: -len(suffix)]
                 break
-        
 
         spec = ModelSpec(
             kind=self.model_config["model"]["kind"],
             name=model_name,
-            kwargs=self.model_config["model"]["kwargs"], 
+            kwargs=self.model_config["model"]["kwargs"],
         )
 
         ctx = {
-            "num_channels" : 14,                 # FIXED
-            "num_samples" : int(self.base_config["window"]["window_size_s"] * FS), 
+            "num_channels": 14,  # FIXED
+            "num_samples": int(self.base_config["window"]["window_size_s"] * FS),
             "num_classes": self.num_classes,
         }
 
@@ -311,45 +319,41 @@ class Model_Master:
         # move to device only for DL models
         if isinstance(self.model, nn.Module):
             self.model.to(self.device)
-        
+
         # Compute dataset columns
         self.extract_dataset_train_columns()
         # Initialize also corresponding trainer class
 
         cols = self.data_col_to_consider + ["Label_train"]
-        if self.kind == 'ml':
-            
-            self.trainer_manager = SklearnTrainer(estimator=self.model,
-                                                df_train=self.df_train[cols], 
-                                                df_val=None,
-                                                df_test=self.df_test[cols], 
-                                                label_col= 'Label_train')
-        elif self.kind == 'dl':
-            self.trainer_manager = TorchTrainer(estimator=self.model, 
-                                                
-                                                df_train=self.df_train[cols] if not self.df_train.empty else None, 
-                                                df_val=self.df_val[cols] if not self.df_val.empty else None, 
-                                                df_test=self.df_test[cols] if not self.df_test.empty else None, 
-                                                train_cfg=self.model_config['model']["kwargs"]["train_cfg"], 
-                                                label_col = 'Label_train')
+        if self.kind == "ml":
+
+            self.trainer_manager = SklearnTrainer(
+                estimator=self.model,
+                df_train=self.df_train[cols],
+                df_val=None,
+                df_test=self.df_test[cols],
+                label_col="Label_train",
+            )
+        elif self.kind == "dl":
+            self.trainer_manager = TorchTrainer(
+                estimator=self.model,
+                df_train=self.df_train[cols] if not self.df_train.empty else None,
+                df_val=self.df_val[cols] if not self.df_val.empty else None,
+                df_test=self.df_test[cols] if not self.df_test.empty else None,
+                train_cfg=self.model_config["model"]["kwargs"]["train_cfg"],
+                label_col="Label_train",
+            )
 
         print("Model and Trainer Initialized!")
 
-
-    def train_model(self, 
-                    save_model_path: Optional[Path] = None, 
-                    test: Optional[bool] = True):
+    def train_model(self, save_model_path: Optional[Path] = None, test: Optional[bool] = True):
         """
         Main Model Trainer
         """
         self.model = self.trainer_manager.fit(save_model_path)
-
 
         if test:
             metrics, y_true, y_pred = self.trainer_manager.evaluate()
 
         # return the model
         return self.model, metrics, y_true, y_pred
-
-
-

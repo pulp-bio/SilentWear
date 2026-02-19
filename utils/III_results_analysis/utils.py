@@ -1,28 +1,43 @@
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 import os
-import json, hashlib, ast
+import json
+import hashlib
+import ast
 import numpy as np
 import sys
-import os
 import pandas as pd
 import matplotlib.pyplot as plt
-import ast
 from pathlib import Path
-ARTIFACTS_DIR = Path(os.environ.get('SILENTWEAR_ARTIFACTS_DIR', Path(__file__).resolve().parents[2]/'artifacts'))
+
+ARTIFACTS_DIR = Path(
+    os.environ.get("SILENTWEAR_ARTIFACTS_DIR", Path(__file__).resolve().parents[2] / "artifacts")
+)
 import copy
 from utils.I_data_preparation.experimental_config import ORIGINAL_LABELS
-from sklearn.metrics import ConfusionMatrixDisplay
 
 # keys you might want to ignore when comparing "exact same run_cfg"
 VOLATILE_KEYS = {
-    "timestamp", "time", "datetime", "seed", "run_id",
-    "output_dir", "log_dir", "wandb", "git_commit"
+    "timestamp",
+    "time",
+    "datetime",
+    "seed",
+    "run_id",
+    "output_dir",
+    "log_dir",
+    "wandb",
+    "git_commit",
 }
 
 
-
-
-def generate_training_labels(include_rest: bool= False, 
-                             original_label_map : dict = {}):
+def generate_training_labels(include_rest: bool = False, original_label_map: dict = {}):
     """
     Generate:
         - train_label_map: {train_id: word}
@@ -30,7 +45,7 @@ def generate_training_labels(include_rest: bool= False,
         - orig_to_train:  {orig_id: train_id}
         - num_classes
     """
-    
+
     original_map = original_label_map
 
     if include_rest:
@@ -43,19 +58,11 @@ def generate_training_labels(include_rest: bool= False,
         filtered_items = [(k, v) for k, v in original_map.items() if k != 0]
 
         # train labels become 0..7
-        train_label_map = {
-            new_k: word for new_k, (_, word) in enumerate(filtered_items)
-        }
-        train_to_orig = {
-            new_k: orig_k for new_k, (orig_k, _) in enumerate(filtered_items)
-        }
-        orig_to_train = {
-            orig_k: new_k for new_k, (orig_k, _) in enumerate(filtered_items)
-        }
+        train_label_map = {new_k: word for new_k, (_, word) in enumerate(filtered_items)}
+        train_to_orig = {new_k: orig_k for new_k, (orig_k, _) in enumerate(filtered_items)}
+        orig_to_train = {orig_k: new_k for new_k, (orig_k, _) in enumerate(filtered_items)}
 
     return train_label_map, train_to_orig, orig_to_train
-
-
 
 
 def drop_path(d, path):
@@ -72,6 +79,7 @@ def drop_path(d, path):
     if isinstance(cur, dict):
         cur.pop(path[-1], None)
 
+
 def normalized_run_cfg(cfg, ignore_keys):
     cfg = copy.deepcopy(cfg)
     for p in ignore_keys:
@@ -82,29 +90,30 @@ def normalized_run_cfg(cfg, ignore_keys):
 def canonicalize(obj):
     """
     Convert a dict to a canonical JSON string.
-    Needed to use .uniqu() on pandas df. 
+    Needed to use .uniqu() on pandas df.
     """
-    
 
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
+
 def normalize_and_canonicalize(cfg, ignore_keys):
     normalized = normalized_run_cfg(cfg, ignore_keys=ignore_keys)
-    canonical  = canonicalize(normalized)
+    canonical = canonicalize(normalized)
     return canonical
 
 
 def dict_to_canonical(d):
     return json.dumps(d, sort_keys=True)
 
+
 def drop_keys_recursive(obj, drop_keys=set()):
     """Remove volatile keys recursively from dict/list structures."""
     if isinstance(obj, dict):
-        return {k: drop_keys_recursive(v, drop_keys)
-                for k, v in obj.items() if k not in drop_keys}
+        return {k: drop_keys_recursive(v, drop_keys) for k, v in obj.items() if k not in drop_keys}
     if isinstance(obj, list):
         return [drop_keys_recursive(x, drop_keys) for x in obj]
     return obj
+
 
 def cfg_signature(run_cfg: dict, drop_keys=None) -> str:
     """Stable hash for comparing run_cfg equality."""
@@ -113,12 +122,14 @@ def cfg_signature(run_cfg: dict, drop_keys=None) -> str:
     s = json.dumps(cleaned, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
+
 def parse_cm_cell(x):
     """Robustly parse a confusion-matrix cell from CSV (string -> list -> array)."""
     if pd.isna(x):
         return None
     cm = ast.literal_eval(x)
     return np.array(cm, dtype=float)
+
 
 def mean_std_confusion_matrices(cm_series: pd.Series):
     cms = [parse_cm_cell(v) for v in cm_series]
@@ -137,12 +148,17 @@ def _to_array(x):
         x = ast.literal_eval(x)
     return np.array(x, dtype=float)
 
+
 def _recall_from_cm(cm: np.ndarray):
     row_sum = cm.sum(axis=1)
     with np.errstate(divide="ignore", invalid="ignore"):
-        return np.divide(np.diag(cm), row_sum,
-                         out=np.full(row_sum.shape, np.nan, dtype=float),
-                         where=row_sum != 0)
+        return np.divide(
+            np.diag(cm),
+            row_sum,
+            out=np.full(row_sum.shape, np.nan, dtype=float),
+            where=row_sum != 0,
+        )
+
 
 def _get_word_labels_from_train_label_map(cell):
     if isinstance(cell, str):
@@ -171,19 +187,20 @@ def plot_subject_word_accuracy_grid_from_summary(
     silent_condition: str = "silent",
     condition_col: str = "condition",
     subject_col: str = "subject",
-    title_extras : str = None,
-    save_path : Path = None,
+    title_extras: str = None,
+    save_path: Path = None,
 ):
     subjects = sorted(pd.unique(summary_df[subject_col]))
 
     fig, axes = plt.subplots(
-        nrows=len(subjects), ncols=2,
+        nrows=len(subjects),
+        ncols=2,
         figsize=(16, max(3.2, 3.2 * len(subjects))),
-        squeeze=False, sharey=True
+        squeeze=False,
+        sharey=True,
     )
 
-    conds = [(vocalized_condition, 0, "Vocalized"),
-             (silent_condition, 1, "Silent")]
+    conds = [(vocalized_condition, 0, "Vocalized"), (silent_condition, 1, "Silent")]
 
     for r, subj in enumerate(subjects):
         subj_df = summary_df[summary_df[subject_col] == subj]
@@ -199,7 +216,7 @@ def plot_subject_word_accuracy_grid_from_summary(
             # If multiple runs exist for same subject/condition, aggregate across runs:
             # - overall acc mean/std across runs
             overall_mean = df_sc["balanced_acc_mean"].values[0]
-            overall_std  = df_sc["balanced_acc_std"].values[0]
+            overall_std = df_sc["balanced_acc_std"].values[0]
 
             # collect per-run per-word recalls using mean_cm (one per run)
             recalls = []
@@ -211,7 +228,11 @@ def plot_subject_word_accuracy_grid_from_summary(
                     continue
                 recalls.append(_recall_from_cm(cm))
 
-                if labels is None and "train_label_map" in row and row["train_label_map"] is not None:
+                if (
+                    labels is None
+                    and "train_label_map" in row
+                    and row["train_label_map"] is not None
+                ):
                     labels = _get_word_labels_from_train_label_map(row["train_label_map"])
 
             if not recalls:
@@ -221,7 +242,7 @@ def plot_subject_word_accuracy_grid_from_summary(
 
             recalls = np.vstack(recalls)  # (n_runs, C)
             mean_word = np.nanmean(recalls, axis=0)
-            std_word  = np.nanstd(recalls, axis=0)
+            std_word = np.nanstd(recalls, axis=0)
 
             C = len(mean_word)
             if labels is None or len(labels) != C:
@@ -233,13 +254,15 @@ def plot_subject_word_accuracy_grid_from_summary(
             ax.set_xticks(x)
             ax.set_xticklabels(labels, rotation=45, ha="right")
 
-            ax.set_title(f"SUBJECT: {subj} | {cond_title} | ACC: {overall_mean:.3f} ± {overall_std:.3f}")
-            
+            ax.set_title(
+                f"SUBJECT: {subj} | {cond_title} | ACC: {overall_mean:.3f} ± {overall_std:.3f}"
+            )
+
             if c == 0:
                 ax.set_ylabel("Per-word accuracy (recall)")
 
     suptitle = "Comparisons"
-    if title_extras is not None:   
+    if title_extras is not None:
         print(title_extras)
         suptitle = f"{suptitle} | {title_extras}"
     fig.suptitle(suptitle, y=1.02, fontsize=14)
@@ -247,14 +270,15 @@ def plot_subject_word_accuracy_grid_from_summary(
     plt.show()
 
     if save_path is not None:
-        fig.savefig(save_path, bbox_inches='tight')
+        fig.savefig(save_path, bbox_inches="tight")
         print(f"Figure saved to {save_path}")
 
-    
 
-
-
-def load_all_results(models_dire, subjects_to_consider=["S01", "S02", "S03", "S04"], conditions_to_consider=["silent", "vocalized"]):
+def load_all_results(
+    models_dire,
+    subjects_to_consider=["S01", "S02", "S03", "S04"],
+    conditions_to_consider=["silent", "vocalized"],
+):
     """
     Load and summarize saved experiment results from a directory tree of completed runs.
 
@@ -333,7 +357,6 @@ def load_all_results(models_dire, subjects_to_consider=["S01", "S02", "S03", "S0
 
     """
 
-    
     all_rows = []
 
     for subject in subjects_to_consider:
@@ -348,7 +371,7 @@ def load_all_results(models_dire, subjects_to_consider=["S01", "S02", "S03", "S0
 
                 model_runs = [p for p in model_folder.iterdir() if p.is_dir()]
                 # If the same model was trained multiple times (e.g., different seeds), we have multiple runs
-                #print("Model type:", model_folder.name, "contains", len(model_runs), "variants")
+                # print("Model type:", model_folder.name, "contains", len(model_runs), "variants")
 
                 for curr_model_folder in model_runs:
                     # Read the config
@@ -361,12 +384,11 @@ def load_all_results(models_dire, subjects_to_consider=["S01", "S02", "S03", "S0
 
                     include_rest = run_cfg["experimental_settings"]["include_rest"]
                     # This is to map training labels back to original labels (if rest was removed during training)
-                    original_label_map = ORIGINAL_LABELS.copy() 
+                    original_label_map = ORIGINAL_LABELS.copy()
 
                     # training labels (keep if you need label order)
                     train_label_map, train_to_orig, orig_to_train = generate_training_labels(
-                        include_rest=include_rest,
-                        original_label_map=original_label_map
+                        include_rest=include_rest, original_label_map=original_label_map
                     )
 
                     cv_path = curr_model_folder / "cv_summary.csv"
@@ -374,16 +396,18 @@ def load_all_results(models_dire, subjects_to_consider=["S01", "S02", "S03", "S0
                         continue
                     model_summary_file = pd.read_csv(cv_path)
 
-                    mean_cm, std_cm = mean_std_confusion_matrices(model_summary_file["confusion_matrix"])
+                    mean_cm, std_cm = mean_std_confusion_matrices(
+                        model_summary_file["confusion_matrix"]
+                    )
                     # config signature for "exactly same run cfg" comparison
-                    sig_full = cfg_signature(run_cfg['model_cfg'], drop_keys=set())                 # truly exact
-                    # If models where trained with differnt seeds, we need to keep track 
+                    sig_full = cfg_signature(run_cfg["model_cfg"], drop_keys=set())  # truly exact
+                    # If models where trained with differnt seeds, we need to keep track
                     if run_cfg.get("seeds") is not None:
                         sig_seeds = cfg_signature(run_cfg["seeds"], drop_keys=set())
                     else:
                         sig_seeds = "default"
 
-                    #sig_stable = cfg_signature(run_cfg, drop_keys=VOLATILE_KEYS)       # ignore volatile
+                    # sig_stable = cfg_signature(run_cfg, drop_keys=VOLATILE_KEYS)       # ignore volatile
                     balanc_acc_vals_array = np.array(model_summary_file["balanced_accuracy"])
                     row = {
                         "subject": subject,
@@ -391,23 +415,18 @@ def load_all_results(models_dire, subjects_to_consider=["S01", "S02", "S03", "S0
                         "model_type_folder": model_folder.name,
                         "model_name": run_cfg["model_cfg"]["model"]["name"],
                         "include_rest": include_rest,
-
                         "balanced_acc_mean": np.mean(balanc_acc_vals_array),
-                        
-                        "balanced_acc_vals" : balanc_acc_vals_array, 
+                        "balanced_acc_vals": balanc_acc_vals_array,
                         "balanced_acc_std": np.std(balanc_acc_vals_array),
-
                         "mean_cm": None if mean_cm is None else mean_cm.tolist(),
                         "std_cm": None if std_cm is None else std_cm.tolist(),
-
                         "run_cfg_signature_exact": sig_full,
                         "run_cfg_signature_seeds": sig_seeds,
                         "run_path": str(curr_model_folder),
-                        "model_id": str(curr_model_folder.name), 
+                        "model_id": str(curr_model_folder.name),
                         "run_cfg": run_cfg,  # keep full config for inspection
-                        "train_label_map" : train_label_map,
-
-                        "win_size_ms": run_cfg['experimental_settings']['window_size_ms']
+                        "train_label_map": train_label_map,
+                        "win_size_ms": run_cfg["experimental_settings"]["window_size_ms"],
                     }
 
                     all_rows.append(row)
@@ -417,17 +436,15 @@ def load_all_results(models_dire, subjects_to_consider=["S01", "S02", "S03", "S0
     return summary_df
 
 
-
-
 ################## For seed experiments ##################################
 def save_per_condition_seed_report_csv(
-    accs_seeds_raw,             # (n_seeds, n_subjects) in 0..1 OR %
-    accs_vals_seeds_raw,        # (n_seeds, n_subjects) each entry is array-like of fold vals (0..1 OR %)
-    subjects,                   # list[str] len n_subjects
-    condition_name,             # "silent"/"vocalized"
-    out_csv_path,               # Path
-    values_are_fraction=True,   # True if values are in 0..1
-    ):
+    accs_seeds_raw,  # (n_seeds, n_subjects) in 0..1 OR %
+    accs_vals_seeds_raw,  # (n_seeds, n_subjects) each entry is array-like of fold vals (0..1 OR %)
+    subjects,  # list[str] len n_subjects
+    condition_name,  # "silent"/"vocalized"
+    out_csv_path,  # Path
+    values_are_fraction=True,  # True if values are in 0..1
+):
     """
     Save per-condition CSV with:
       - per-seed per-subject mean (balanced_acc_mean)
@@ -436,7 +453,7 @@ def save_per_condition_seed_report_csv(
       - TOTAL row: mean/std across subjects of per-subject mean (same logic as your prints)
     """
 
-    accs_mean = np.asarray(accs_seeds_raw)          # (n_seeds, n_subjects)
+    accs_mean = np.asarray(accs_seeds_raw)  # (n_seeds, n_subjects)
     accs_vals = np.asarray(accs_vals_seeds_raw, dtype=object)
 
     if accs_mean.ndim != 2:
@@ -451,10 +468,10 @@ def save_per_condition_seed_report_csv(
 
     if len(subjects) != n_subjects:
         raise ValueError("subjects length mismatch")
-    
+
     # containers for fold stats
     fold_mean = np.zeros((n_seeds, n_subjects))
-    fold_std  = np.zeros((n_seeds, n_subjects))
+    fold_std = np.zeros((n_seeds, n_subjects))
 
     # compute fold-level mean/std
     for seed in range(n_seeds):
@@ -463,7 +480,7 @@ def save_per_condition_seed_report_csv(
             if values_are_fraction:
                 vals = vals * 100.0
             fold_mean[seed, sub] = np.mean(vals)
-            fold_std[seed, sub]  = np.std(vals)
+            fold_std[seed, sub] = np.std(vals)
 
     # stringify fold values
     def _vals_to_str(v):
@@ -480,9 +497,8 @@ def save_per_condition_seed_report_csv(
     for s in range(n_seeds):
 
         df[f"seed_{s}_fold_mean"] = np.round(fold_mean[s], 3)
-        df[f"seed_{s}_fold_std"]  = np.round(fold_std[s], 3)
+        df[f"seed_{s}_fold_std"] = np.round(fold_std[s], 3)
         df[f"seed_{s}_fold_vals"] = [_vals_to_str(accs_vals[s, j]) for j in range(n_subjects)]
-
 
     total_row = {c: "" for c in df.columns}
     total_row["subject_id"] = "AVERAGE"
@@ -498,24 +514,54 @@ def save_per_condition_seed_report_csv(
     print(f"[CSV saved] {condition_name}: {out_csv_path}")
 
 
-def return_data_directories(main_data_dire_proc, sub_ids, base_cfg, all_subject_models, condition, win_size_ms):
+def return_data_directories(
+    main_data_dire_proc, sub_ids, base_cfg, all_subject_models, condition, win_size_ms
+):
     data_dire_proc = []
-    if all_subject_models == False: 
-        # check if we want to train with silent - vocalized or both 
+    if all_subject_models == False:
+        # check if we want to train with silent - vocalized or both
         if condition != "voc_and_silent":
-            data_dire_proc.append(main_data_dire_proc / Path(f"{base_cfg['paths']['win_and_feats']}/{sub_ids}/{condition}/WIN_{win_size_ms}"))
+            data_dire_proc.append(
+                main_data_dire_proc
+                / Path(
+                    f"{base_cfg['paths']['win_and_feats']}/{sub_ids}/{condition}/WIN_{win_size_ms}"
+                )
+            )
         else:
-            data_dire_proc.append(main_data_dire_proc / Path(f"{base_cfg['paths']['win_and_feats']}/{sub_ids}/silent/WIN_{win_size_ms}"))
-            data_dire_proc.append(main_data_dire_proc / Path(f"{base_cfg['paths']['win_and_feats']}/{sub_ids}/vocalized/WIN_{win_size_ms}"))
+            data_dire_proc.append(
+                main_data_dire_proc
+                / Path(f"{base_cfg['paths']['win_and_feats']}/{sub_ids}/silent/WIN_{win_size_ms}")
+            )
+            data_dire_proc.append(
+                main_data_dire_proc
+                / Path(
+                    f"{base_cfg['paths']['win_and_feats']}/{sub_ids}/vocalized/WIN_{win_size_ms}"
+                )
+            )
 
     elif all_subject_models == True:
         for curr_sub_id in sub_ids:
             if condition != "voc_and_silent":
-                data_dire_proc.append(main_data_dire_proc / Path(f"{base_cfg['paths']['win_and_feats']}/{curr_sub_id}/{condition}/WIN_{win_size_ms}"))
+                data_dire_proc.append(
+                    main_data_dire_proc
+                    / Path(
+                        f"{base_cfg['paths']['win_and_feats']}/{curr_sub_id}/{condition}/WIN_{win_size_ms}"
+                    )
+                )
             else:
-                data_dire_proc.append(main_data_dire_proc / Path(f"{base_cfg['paths']['win_and_feats']}/{curr_sub_id}/silent/WIN_{win_size_ms}"))
-                data_dire_proc.append(main_data_dire_proc / Path(f"{base_cfg['paths']['win_and_feats']}/{curr_sub_id}/vocalized/WIN_{win_size_ms}"))
-    for curr_data_dire_proc in data_dire_proc:        
+                data_dire_proc.append(
+                    main_data_dire_proc
+                    / Path(
+                        f"{base_cfg['paths']['win_and_feats']}/{curr_sub_id}/silent/WIN_{win_size_ms}"
+                    )
+                )
+                data_dire_proc.append(
+                    main_data_dire_proc
+                    / Path(
+                        f"{base_cfg['paths']['win_and_feats']}/{curr_sub_id}/vocalized/WIN_{win_size_ms}"
+                    )
+                )
+    for curr_data_dire_proc in data_dire_proc:
         if curr_data_dire_proc.exists() == False:
             print("Data directory:", curr_data_dire_proc, "does not exist, exist")
             sys.exit()

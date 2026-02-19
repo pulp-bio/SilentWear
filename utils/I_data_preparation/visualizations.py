@@ -1,13 +1,24 @@
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 General Visualization Utils
 """
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
-import re 
+import re
+
 
 def plot_emg_color_by_label(
     emg_df,
@@ -23,7 +34,7 @@ def plot_emg_color_by_label(
     legend_y=1.02,  # increase if you want more spacing above plots
     channels=None,  # optional explicit list of channel base names like ["Ch_0", ...]
     title=None,
-    save_path = None,
+    save_path=None,
 ):
     """
     Plot N channels stacked, with line color-coded by label_col (string labels).
@@ -145,8 +156,6 @@ def plot_emg_color_by_label(
         plt.show()
 
 
-
-
 def plot_label_waveform(emg_df, use_label_str=True):
     """
     Plot Label_int as a square wave, shading each contiguous label segment.
@@ -202,10 +211,7 @@ def plot_label_waveform(emg_df, use_label_str=True):
     plt.step(np.arange(n), labels, where="post", linewidth=2)
 
     # ---- Build legend ----
-    patches = [
-        Patch(label=f"{k} → {v}")
-        for k, v in legend_entries.items()
-    ]
+    patches = [Patch(label=f"{k} → {v}") for k, v in legend_entries.items()]
 
     plt.legend(handles=patches, title="Labels", loc="upper right")
 
@@ -217,8 +223,7 @@ def plot_label_waveform(emg_df, use_label_str=True):
     plt.show()
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     # Adjust here the path
     # Adjust here with your path

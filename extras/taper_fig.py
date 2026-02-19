@@ -1,18 +1,26 @@
-
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
 
 from pathlib import Path
 import sys
-PROJECT_ROOT = Path(__file__).resolve().parents[1]   
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 import numpy as np
 import pandas as pd
 import re
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-# PROJECT_ROOT = Path(__file__).resolve().parents[2]   
+
+# PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # sys.path.insert(0, str(PROJECT_ROOT))
 from utils.I_data_preparation.experimental_config import FS
-
 
 
 ###### PLOT IN THE PAPER: subject 4
@@ -21,17 +29,13 @@ main_data_dire_folder = Path("/scratch2/gspacone/DATA_DIR_SILENT")
 save_fig_path = Path("/home/gspacone/Desktop/Silentwear/artifacts/figures")
 
 
-
 def find_all_processed_h5(main_data_dire_folder, subject):
     "Function to return all h5 files contained in the processed directory"
     # Find all .bio files under the subject raw folder
-    h5_files = sorted((main_data_dire_folder/'data_raw_and_filt'/subject).rglob("*.h5"))
-    #print("Found files for current user:")
-    #print(h5_files)
+    h5_files = sorted((main_data_dire_folder / "data_raw_and_filt" / subject).rglob("*.h5"))
+    # print("Found files for current user:")
+    # print(h5_files)
     return h5_files
-
-
-
 
 
 def plot_words_grid_all_channels(
@@ -40,41 +44,39 @@ def plot_words_grid_all_channels(
     word_title,
     check_word_bounderies,
     FS,
-    cols = None,
+    cols=None,
     key="emg",
     conditions=("vocalized", "silent"),
     example_idx=4,
     filt_suffix="_filt",
     figsize=(50, 20),
-    save_path = None, 
-
+    save_path=None,
     # layout (increase left margin so labels fit)
-    L=0.16, R=0.995, B=0.05, T=0.8,
-    wspace=0.03, hspace=0.0,
+    L=0.16,
+    R=0.995,
+    B=0.05,
+    T=0.8,
+    wspace=0.03,
+    hspace=0.0,
     header_h=0.05,
-
     # montage scaling
     spacing_factor=10,
     margin_factor=2,
     alpha=1.0,
     lw=1.0,
-
     # styling
     grid_alpha=0.15,
     alt_bg_alpha=0.04,
-    channel_colors = None, 
-
+    channel_colors=None,
     # ticks/labels
     show_time_ticks_bottom_only=True,
     show_time_xlabel_bottom_only=True,
     ylabels_fontsize=14,
     ylabels_pad=8,
     short_channel_labels=True,
-
     # header text
     word_fontsize=30,
     row_fontsize=30,
-
     # outer box
     outer_box=True,
     outer_box_lw=2.0,
@@ -91,9 +93,11 @@ def plot_words_grid_all_channels(
 
     def _get_sorted_channel_cols(df, filt_suffix="_filt"):
         cols = [c for c in df.columns if c.startswith("Ch_") and c.endswith(filt_suffix)]
+
         def ch_num(c):
             m = re.search(r"Ch_(\d+)", c)
             return int(m.group(1)) if m else 10**9
+
         return sorted(cols, key=ch_num)
 
     def _short_labels(cols):
@@ -123,9 +127,6 @@ def plot_words_grid_all_channels(
                 ax.plot(t, sigs[k] + offsets[k], alpha=alpha, linewidth=lw, color=channel_colors[k])
             else:
                 ax.plot(t, sigs[k] + offsets[k], alpha=alpha, linewidth=lw)
-
-            
-
 
         ax.set_ylim(*ylims)
 
@@ -209,7 +210,7 @@ def plot_words_grid_all_channels(
             axs[i, 0].set_yticks(offsets_by_row[i])
             ######## CHANGE HERE TO SHOW NAMES
             axs[i, 0].set_yticklabels(ylabels_by_row[i], fontsize=ylabels_fontsize, color="white")
-            #axs[i, 0].set_yticklabels(ylabels_by_row[i], fontsize=ylabels_fontsize, color="black")
+            # axs[i, 0].set_yticklabels(ylabels_by_row[i], fontsize=ylabels_fontsize, color="black")
             axs[i, 0].tick_params(axis="y", length=0, pad=ylabels_pad, labelleft=True)
 
     # 2) For other columns: HIDE y labels without clearing ticks (sharey!)
@@ -255,14 +256,13 @@ def plot_words_grid_all_channels(
             linewidth=outer_box_lw,
             edgecolor=outer_box_color,
             zorder=1000,
-            clip_on=False
+            clip_on=False,
         )
         fig.add_artist(rect)
 
     # column titles (words) inside box
     col_centers = [
-        0.5 * (axs[0, j].get_position().x0 + axs[0, j].get_position().x1)
-        for j in range(n_cols)
+        0.5 * (axs[0, j].get_position().x0 + axs[0, j].get_position().x1) for j in range(n_cols)
     ]
     col_labels = []
     for word_cnt, w in enumerate(unique_words):
@@ -280,7 +280,6 @@ def plot_words_grid_all_channels(
         bb = axs[i, 0].get_position()
         cy = 0.5 * (bb.y0 + bb.y1)
         fig.text(L - 0.03, cy, lab, ha="left", va="center", fontsize=row_fontsize, rotation=90)
-    
 
     if save_path:
         save_path = Path(save_path)
@@ -290,7 +289,7 @@ def plot_words_grid_all_channels(
             save_path,
             bbox_inches="tight",
             pad_inches=0.02,
-            transparent=True,   
+            transparent=True,
         )
     return fig, axs
 
@@ -304,7 +303,7 @@ def check_word_bounderies(emg_word):
     idxs_start.append(idx_word[0])
     for idx_curr in idx_word[1:]:
 
-        if idx_curr!= idx_prev+1:
+        if idx_curr != idx_prev + 1:
             # new repetition
             idxs_stop.append(idx_prev)
             idxs_start.append(idx_curr)
@@ -316,49 +315,39 @@ def check_word_bounderies(emg_word):
     return idxs_start, idxs_stop
 
 
+if __name__ == "__main__":
 
-
-if __name__ == '__main__':
-
-    neckband_ch_order = [0, 1, 2, 5, 3, 4, 7, 6, 8,15, 9, 14, 10, 13]
+    neckband_ch_order = [0, 1, 2, 5, 3, 4, 7, 6, 8, 15, 9, 14, 10, 13]
     cols = []
     for id in neckband_ch_order:
         cols.append(f"Ch_{id}_filt")
-
 
     channel_colors = [
         # Blue pair
         "#1f77b4",  # CH0
         "#6baed6",  # CH1
-        
         # Orange pair
         "#ff7f0e",  # CH2
         "#ffbb78",  # CH3
-        
         # Green pair
         "#2ca02c",  # CH4
         "#98df8a",  # CH5
-        
         # Red pair
         "#d62728",  # CH6
         "#ff9896",  # CH7
-        
         # Purple pair
         "#9467bd",  # CH8
         "#c5b0d5",  # CH9
-        
         # Brown pair
         "#8c564b",  # CH10
         "#c49c94",  # CH11
-        
         # Teal pair
         "#17becf",  # CH12
         "#9edae5",  # CH13
     ]
 
     unique_words = ["rest", "up", "down", "left", "right", "start", "stop", "forward", "backward"]
-    word_title = ["REST", "UP", "DOWN", "LEFT", "RIGHT", "START","STOP", "FORWARD", "BACKWARD"]
-
+    word_title = ["REST", "UP", "DOWN", "LEFT", "RIGHT", "START", "STOP", "FORWARD", "BACKWARD"]
 
     h5_files = find_all_processed_h5(main_data_dire_folder, subject_to_consider)
     fig, axs = plot_words_grid_all_channels(
@@ -367,8 +356,8 @@ if __name__ == '__main__':
         cols=cols,
         example_idx=2,
         word_title=word_title,
-        channel_colors = channel_colors, 
+        channel_colors=channel_colors,
         check_word_bounderies=check_word_bounderies,
         FS=FS,
-        save_path=save_fig_path/'taper.svg'
+        save_path=save_fig_path / "taper.svg",
     )

@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 III_ft_results.py
 
@@ -52,6 +61,7 @@ from utils.general_utils import open_file
 
 # ------------------------- small helpers -------------------------
 
+
 def _model_name_id_from_window_ms(win_ms: int) -> str:
     return f"w{int(win_ms)}ms"
 
@@ -89,6 +99,7 @@ def _ensure_sorted_by_x(summary_subject: dict) -> dict:
 
 # ------------------------- core loaders -------------------------
 
+
 def load_results(
     base_model_folder,
     model_name,
@@ -96,9 +107,9 @@ def load_results(
     subjects,
     ft_id,
     model_base_id,
-    inter_session_id = None, 
+    inter_session_id=None,
     type="ft",
-    ):
+):
     """
     Loads per-subject arrays over num_prev_ft_rounds, both for fine tuning and baseline experiments.
     Enforces that lr/scheduler/num_epochs are identical across subjects for a given ft_id.
@@ -114,7 +125,10 @@ def load_results(
     for subject_id in subjects:
 
         if type == "train_from_scratch":
-            results_path = (Path(base_model_folder)/ f"{subject_id}/{condition}/{model_name}/{model_base_id}/{ft_id}/{type}_summary.csv")
+            results_path = (
+                Path(base_model_folder)
+                / f"{subject_id}/{condition}/{model_name}/{model_base_id}/{ft_id}/{type}_summary.csv"
+            )
             cfg_file = (
                 Path(base_model_folder)
                 / f"{subject_id}/{condition}/{model_name}/{model_base_id}/{ft_id}/tfs_cfg.json"
@@ -129,7 +143,10 @@ def load_results(
             win_size = int(float(min_run_cfg["base_cfg"]["window"]["window_size_s"]) * 1000)
 
         else:
-            results_path = (Path(base_model_folder)/ f"{subject_id}/{condition}/{model_name}/{model_base_id}/{ft_id}/{type}_summary.csv")
+            results_path = (
+                Path(base_model_folder)
+                / f"{subject_id}/{condition}/{model_name}/{model_base_id}/{ft_id}/{type}_summary.csv"
+            )
             cfg_file = (
                 Path(base_model_folder)
                 / f"{subject_id}/{condition}/{model_name}/{model_base_id}/{ft_id}/ft_cfg.json"
@@ -142,7 +159,6 @@ def load_results(
                 raise FileNotFoundError(f"Missing run_cfg.json: {run_cfg_file}")
             min_run_cfg = open_file(run_cfg_file)
             win_size = int(float(min_run_cfg["base_cfg"]["window"]["window_size_s"]) * 1000)
-
 
         model_name_id = _model_name_id_from_window_ms(win_size)
 
@@ -157,9 +173,7 @@ def load_results(
         # scheduler name
         sched_cfg = train_cfg.get("scheduler", None)
         sched_name = (
-            sched_cfg["name"]
-            if isinstance(sched_cfg, dict) and "name" in sched_cfg
-            else "no_sched"
+            sched_cfg["name"] if isinstance(sched_cfg, dict) and "name" in sched_cfg else "no_sched"
         )
 
         lr = float(train_cfg["lr"])
@@ -234,6 +248,7 @@ def load_results(
 
 # ------------------------- tabulation -------------------------
 
+
 def summarize_subject_table(summary_condition_across_subjects, ft_id, condition):
     """
     Builds a table with per-subject mean/std for each prev_ft_round, for:
@@ -273,9 +288,9 @@ def summarize_subject_table(summary_condition_across_subjects, ft_id, condition)
             }
         )
 
-    df_global = df.groupby(
-        ["condition", "ft_id", "prev_ft_rounds"], as_index=False
-    )[["FT_mean", "NOFT_mean"]].apply(_global_stats)
+    df_global = df.groupby(["condition", "ft_id", "prev_ft_rounds"], as_index=False)[
+        ["FT_mean", "NOFT_mean"]
+    ].apply(_global_stats)
 
     return df, df_global
 
@@ -332,8 +347,9 @@ def summary_to_csv(summary_ft, summary_baseline, res_save_folder, condition, mod
     win_size = int(unique_win[0])
     res_save_folder = Path(res_save_folder)
     res_save_folder.mkdir(parents=True, exist_ok=True)
-    df_summary.to_csv(res_save_folder / f"ft_bs_results_{condition}_{model_to_select}_{win_size}.csv", index=False)
-
+    df_summary.to_csv(
+        res_save_folder / f"ft_bs_results_{condition}_{model_to_select}_{win_size}.csv", index=False
+    )
 
     print("Fine tuned results")
     print(df_summary["subj_acc_means"].iloc[-1])
@@ -349,6 +365,7 @@ def summary_to_csv(summary_ft, summary_baseline, res_save_folder, condition, mod
 
 
 # ------------------------- alignment helpers for plotting -------------------------
+
 
 def _idx_for(s, x_target):
     sx = np.asarray(s["num_prev_ft_rounds"])
@@ -452,8 +469,16 @@ def _slice_to_x(subj_dict, x_target):
         x_target,
         np.asarray(subj_dict["subj_acc_means"])[idx],
         np.asarray(subj_dict["subjs_acc_std"])[idx],
-        np.asarray(subj_dict["subjs_acc_means_noft"])[idx] if "subjs_acc_means_noft" in subj_dict else None,
-        np.asarray(subj_dict["subjs_acc_std_noft"])[idx] if "subjs_acc_std_noft" in subj_dict else None,
+        (
+            np.asarray(subj_dict["subjs_acc_means_noft"])[idx]
+            if "subjs_acc_means_noft" in subj_dict
+            else None
+        ),
+        (
+            np.asarray(subj_dict["subjs_acc_std_noft"])[idx]
+            if "subjs_acc_std_noft" in subj_dict
+            else None
+        ),
     )
 
 
@@ -462,7 +487,9 @@ def plot_subjs_and_avgs(ft_summary, scratch_summary, show_no_ft=True, save_path=
     1 x (Nsubjects+1) layout: each subject is one panel + an "Average" panel at the end.
     Keeps your outer-box styling and hides per-axes spines.
     """
-    x, subject_ids, per_subj, info_ft, info_sc, avg = prepare_aligned(ft_summary, scratch_summary, show_no_ft)
+    x, subject_ids, per_subj, info_ft, info_sc, avg = prepare_aligned(
+        ft_summary, scratch_summary, show_no_ft
+    )
 
     n_subj = len(subject_ids)
     ncols = n_subj + 1
@@ -481,16 +508,40 @@ def plot_subjs_and_avgs(ft_summary, scratch_summary, show_no_ft=True, save_path=
 
         d = per_subj[sid]
 
-        ax.errorbar(d["x"] + 1, d["ft_mean"], yerr=d["ft_std"],
-                    marker="o", linestyle="-", capsize=4, linewidth=2, color=color_ft)
+        ax.errorbar(
+            d["x"] + 1,
+            d["ft_mean"],
+            yerr=d["ft_std"],
+            marker="o",
+            linestyle="-",
+            capsize=4,
+            linewidth=2,
+            color=color_ft,
+        )
         if show_no_ft:
-            ax.errorbar(d["x"] + 1, d["nf_mean"], yerr=d["nf_std"],
-                        marker="o", linestyle="-", capsize=4, linewidth=2, color=color_intersess)
+            ax.errorbar(
+                d["x"] + 1,
+                d["nf_mean"],
+                yerr=d["nf_std"],
+                marker="o",
+                linestyle="-",
+                capsize=4,
+                linewidth=2,
+                color=color_intersess,
+            )
 
         # From scratch: don't show model 0 (random guessing)
         x_sc = np.asarray(d["x"] + 1)
-        ax.errorbar(x_sc[1:], np.asarray(d["sc_mean"])[1:], np.asarray(d["sc_std"])[1:],
-                    marker="s", linestyle="-", capsize=4, linewidth=2, color=color_scratch)
+        ax.errorbar(
+            x_sc[1:],
+            np.asarray(d["sc_mean"])[1:],
+            np.asarray(d["sc_std"])[1:],
+            marker="s",
+            linestyle="-",
+            capsize=4,
+            linewidth=2,
+            color=color_scratch,
+        )
 
         ax.set_title(sid, fontsize=fs_ax, y=0.92)
         ax.grid(True, linestyle="--", alpha=0.4)
@@ -504,16 +555,40 @@ def plot_subjs_and_avgs(ft_summary, scratch_summary, show_no_ft=True, save_path=
     face = "#f4f4f4" if (n_subj % 2 == 1) else "#ffffff"
     ax_avg.set_facecolor(face)
 
-    ax_avg.errorbar(x + 1, avg["ft_mean"], yerr=avg["ft_std"],
-                    marker="o", linestyle="-", capsize=4, linewidth=1.5, color=color_ft)
+    ax_avg.errorbar(
+        x + 1,
+        avg["ft_mean"],
+        yerr=avg["ft_std"],
+        marker="o",
+        linestyle="-",
+        capsize=4,
+        linewidth=1.5,
+        color=color_ft,
+    )
 
     if show_no_ft:
-        ax_avg.errorbar(x + 1, avg["nf_mean"], yerr=avg["nf_std"],
-                        marker="o", linestyle="-", capsize=4, linewidth=1.5, color=color_intersess)
+        ax_avg.errorbar(
+            x + 1,
+            avg["nf_mean"],
+            yerr=avg["nf_std"],
+            marker="o",
+            linestyle="-",
+            capsize=4,
+            linewidth=1.5,
+            color=color_intersess,
+        )
 
     x_sc = x + 1
-    ax_avg.errorbar(x_sc[1:], avg["sc_mean"][1:], avg["sc_std"][1:],
-                    marker="s", linestyle="-", capsize=4, linewidth=1.5, color=color_scratch)
+    ax_avg.errorbar(
+        x_sc[1:],
+        avg["sc_mean"][1:],
+        avg["sc_std"][1:],
+        marker="s",
+        linestyle="-",
+        capsize=4,
+        linewidth=1.5,
+        color=color_scratch,
+    )
 
     ax_avg.set_title("Average", fontsize=fs_ax, y=0.92)
     ax_avg.grid(True, linestyle="--", alpha=0.4)
@@ -523,10 +598,32 @@ def plot_subjs_and_avgs(ft_summary, scratch_summary, show_no_ft=True, save_path=
     ax_avg.tick_params(axis="both", labelsize=fs_tick)
 
     # --- legend ---
-    style_handles = [Line2D([0], [0], color=color_ft, lw=2.6, linestyle="-", marker="o", label="Fine Tuning")]
+    style_handles = [
+        Line2D([0], [0], color=color_ft, lw=2.6, linestyle="-", marker="o", label="Fine Tuning")
+    ]
     if show_no_ft:
-        style_handles.append(Line2D([0], [0], color=color_intersess, lw=2.6, linestyle="-", marker="o", label="No Fine Tuning"))
-    style_handles.append(Line2D([0], [0], color=color_scratch, lw=2.6, linestyle="-", marker="s", label="Train From Scratch"))
+        style_handles.append(
+            Line2D(
+                [0],
+                [0],
+                color=color_intersess,
+                lw=2.6,
+                linestyle="-",
+                marker="o",
+                label="No Fine Tuning",
+            )
+        )
+    style_handles.append(
+        Line2D(
+            [0],
+            [0],
+            color=color_scratch,
+            lw=2.6,
+            linestyle="-",
+            marker="s",
+            label="Train From Scratch",
+        )
+    )
 
     fig.legend(
         handles=style_handles,
@@ -593,6 +690,7 @@ def plot_subjs_and_avgs(ft_summary, scratch_summary, show_no_ft=True, save_path=
 
 # ------------------------- CLI main -------------------------
 
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -620,8 +718,8 @@ def main():
     else:
         artifacts_dir = Path(os.environ.get("SILENTWEAR_ARTIFACTS_DIR", project_root / "artifacts"))
 
-    base_ft_model_folder = artifacts_dir/"models"/"inter_session_ft"
-    base_from_scratch_model_folder = artifacts_dir/"models"/"train_from_scratch"
+    base_ft_model_folder = artifacts_dir / "models" / "inter_session_ft"
+    base_from_scratch_model_folder = artifacts_dir / "models" / "train_from_scratch"
     res_save_folder = artifacts_dir / "tables"
     fig_save_folder = artifacts_dir / "figures"
     res_save_folder.mkdir(parents=True, exist_ok=True)
@@ -637,10 +735,10 @@ def main():
             subjects=args.subjects,
             ft_id=args.ft_id,
             model_base_id=args.model_base_id,
-            inter_session_id = args.inter_session_model_id,
+            inter_session_id=args.inter_session_model_id,
             type="ft",
         )
-        
+
         # ---- Baseline ----
         summary_baseline = load_results(
             base_model_folder=base_from_scratch_model_folder,
@@ -649,12 +747,13 @@ def main():
             subjects=args.subjects,
             ft_id=args.bs_id,
             model_base_id=args.model_base_id,
-            inter_session_id = None, 
+            inter_session_id=None,
             type="train_from_scratch",
         )
-        
 
-        df_summary = summary_to_csv(summary_ft, summary_baseline, res_save_folder, condition, args.model_name)
+        df_summary = summary_to_csv(
+            summary_ft, summary_baseline, res_save_folder, condition, args.model_name
+        )
 
         win_size = int(df_summary["win_size_ms"].dropna().unique()[0])
         model_name_id = _model_name_id_from_window_ms(win_size)
@@ -666,6 +765,7 @@ def main():
             save_path=fig_save_folder / f"avg_{condition}_{args.model_name}_{model_name_id}.pdf",
         )
         print("\n\n")
+
 
 if __name__ == "__main__":
     main()

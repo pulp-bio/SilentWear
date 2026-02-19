@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 itr_window_sweep_analysis.py
 
@@ -16,11 +25,10 @@ Outputs:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -29,6 +37,7 @@ from matplotlib.ticker import MultipleLocator, FixedLocator
 
 
 # ----------------------------- helpers -----------------------------
+
 
 @dataclass
 class RunRef:
@@ -103,7 +112,7 @@ def _find_runs(
     model_name_ids: List[str],
     model_run: Optional[str],
     experiment: str = "inter_session",
-    ) -> List[RunRef]:
+) -> List[RunRef]:
     """
     Scan:
       artifacts/models/inter_session/<sub>/<cond>/<model_name>/<model_name_id>/model_<k>/
@@ -139,6 +148,7 @@ def _find_runs(
                     )
                 )
     return out
+
 
 def _compute_itr(M: int, T: float, P: float) -> float:
     """
@@ -192,14 +202,16 @@ def _plot_subjects_plus_average_single_box(
     agg = agg.merge(acc_std_across, on="win_size_ms").merge(itr_std_across, on="win_size_ms")
     agg = agg.set_index("win_size_ms").reindex(windows_ms).reset_index()
 
-    plt.rcParams.update({
-        "font.size": 9,
-        "axes.labelsize": 9,
-        "axes.titlesize": 9,
-        "xtick.labelsize": 8,
-        "ytick.labelsize": 8,
-        "lines.linewidth": 1.0,
-    })
+    plt.rcParams.update(
+        {
+            "font.size": 9,
+            "axes.labelsize": 9,
+            "axes.titlesize": 9,
+            "xtick.labelsize": 8,
+            "ytick.labelsize": 8,
+            "lines.linewidth": 1.0,
+        }
+    )
 
     blocks = subjects + ["Average"]
     n_blocks = len(blocks)
@@ -241,16 +253,28 @@ def _plot_subjects_plus_average_single_box(
 
         # accuracy (%)
         ax.errorbar(
-            x_plot, acc[valid], yerr=acc_std[valid],
-            fmt="o-", capsize=2, markersize=3,
-            color="blue", alpha=0.95, linewidth=0.5,
+            x_plot,
+            acc[valid],
+            yerr=acc_std[valid],
+            fmt="o-",
+            capsize=2,
+            markersize=3,
+            color="blue",
+            alpha=0.95,
+            linewidth=0.5,
         )
 
         # ITR
         ax2.errorbar(
-            x_plot, itr[valid], yerr=itr_std[valid],
-            fmt="o-", capsize=2, markersize=3,
-            color="red", alpha=0.85, linewidth=0.5
+            x_plot,
+            itr[valid],
+            yerr=itr_std[valid],
+            fmt="o-",
+            capsize=2,
+            markersize=3,
+            color="red",
+            alpha=0.85,
+            linewidth=0.5,
         )
 
         centers.append(start + (nW - 1) / 2)
@@ -287,7 +311,7 @@ def _plot_subjects_plus_average_single_box(
 
     # ITR axis scale: auto based on data (safer than hardcoding 200)
     itr_max = float(np.nanmax(df_condition["itr_mean"].to_numpy()))
-    #itr_ylim = max(50.0, np.ceil((itr_max + 10.0) / 25.0) * 25.0)
+    # itr_ylim = max(50.0, np.ceil((itr_max + 10.0) / 25.0) * 25.0)
     ax2.set_ylim(0, 200)
     ax2.yaxis.set_major_locator(MultipleLocator(25))
     ax2.set_ylabel("ITR (bit/min)", color="red")
@@ -312,27 +336,51 @@ def _plot_subjects_plus_average_single_box(
 
 # ----------------------------- main -----------------------------
 
+
 def main():
     ap = argparse.ArgumentParser()
 
-    ap.add_argument("--artifacts_dir", type=Path, default=None,
-                    help="Root artifacts folder (default: env SILENTWEAR_ARTIFACTS_DIR or ./artifacts)")
-    ap.add_argument("--experiment", type=str, default="inter_session",
-                    choices=["inter_session"], help="ITR is computed from inter_session runs")
+    ap.add_argument(
+        "--artifacts_dir",
+        type=Path,
+        default=None,
+        help="Root artifacts folder (default: env SILENTWEAR_ARTIFACTS_DIR or ./artifacts)",
+    )
+    ap.add_argument(
+        "--experiment",
+        type=str,
+        default="inter_session",
+        choices=["inter_session"],
+        help="ITR is computed from inter_session runs",
+    )
 
     ap.add_argument("--subjects", nargs="+", default=["S01", "S02", "S03", "S04"])
     ap.add_argument("--conditions", nargs="+", default=["silent", "vocalized"])
 
     ap.add_argument("--model_name", type=str, required=True, help="e.g., speechnet")
-    ap.add_argument("--model_run", type=str, default=None, help="e.g., model_6; if omitted, uses latest model_<k> per folder.")
+    ap.add_argument(
+        "--model_run",
+        type=str,
+        default=None,
+        help="e.g., model_6; if omitted, uses latest model_<k> per folder.",
+    )
 
     # windows selection
-    ap.add_argument("--model_name_id", type=str, default=None, help="e.g., w1400ms. If set, ignores --windows_s expansion.")
-    ap.add_argument("--windows_s", nargs="*", type=float, default=[0.4, 0.6, 0.8, 1.0, 1.2, 1.4],
-                    help="If model_name_id not set: either <start end> or explicit list. Default: 0.4..1.4 step 0.2")
+    ap.add_argument(
+        "--model_name_id",
+        type=str,
+        default=None,
+        help="e.g., w1400ms. If set, ignores --windows_s expansion.",
+    )
+    ap.add_argument(
+        "--windows_s",
+        nargs="*",
+        type=float,
+        default=[0.4, 0.6, 0.8, 1.0, 1.2, 1.4],
+        help="If model_name_id not set: either <start end> or explicit list. Default: 0.4..1.4 step 0.2",
+    )
     ap.add_argument("--window_step_s", type=float, default=0.2)
-    ap.add_argument("--max_window_ms", type=int, default=None,
-                    help="Optional cutoff (e.g., 1400)")
+    ap.add_argument("--max_window_ms", type=int, default=None, help="Optional cutoff (e.g., 1400)")
 
     # ITR settings
     ap.add_argument("--num_classes", type=int, default=9)
@@ -392,30 +440,38 @@ def main():
             continue
 
         T_sec = win_ms / 1000.0
-        itrs = np.array([_compute_itr(M=args.num_classes, T=T_sec, P=p) for p in bal_vals], dtype=float)
+        itrs = np.array(
+            [_compute_itr(M=args.num_classes, T=T_sec, P=p) for p in bal_vals], dtype=float
+        )
 
-        records.append({
-            "subject": r.subject,
-            "condition": r.condition,
-            "win_size_ms": win_ms,
-            "acc_vals": bal_vals,
-            "acc_mean": float(np.mean(bal_vals) * 100.0),
-            "acc_std": float(np.std(bal_vals) * 100.0),
-            "itr_vals": itrs,
-            "itr_mean": float(np.mean(itrs)),
-            "itr_std": float(np.std(itrs)),
-            "run_path": str(r.run_path),
-            "model_run": r.model_run,
-            "model_name_id": r.model_name_id,
-        })
+        records.append(
+            {
+                "subject": r.subject,
+                "condition": r.condition,
+                "win_size_ms": win_ms,
+                "acc_vals": bal_vals,
+                "acc_mean": float(np.mean(bal_vals) * 100.0),
+                "acc_std": float(np.std(bal_vals) * 100.0),
+                "itr_vals": itrs,
+                "itr_mean": float(np.mean(itrs)),
+                "itr_std": float(np.std(itrs)),
+                "run_path": str(r.run_path),
+                "model_run": r.model_run,
+                "model_name_id": r.model_name_id,
+            }
+        )
 
     res = pd.DataFrame(records)
     if res.empty:
-        raise SystemExit("No usable runs found after filtering (maybe max_window_ms cut everything).")
+        raise SystemExit(
+            "No usable runs found after filtering (maybe max_window_ms cut everything)."
+        )
 
     # Ensure we have one row per (sub, cond, win)
     # If duplicates exist (e.g., multiple model_runs), keep the latest or chosen
-    res = res.sort_values(["subject", "condition", "win_size_ms", "model_run"]).drop_duplicates(subset=["subject", "condition", "win_size_ms"],keep="last")
+    res = res.sort_values(["subject", "condition", "win_size_ms", "model_run"]).drop_duplicates(
+        subset=["subject", "condition", "win_size_ms"], keep="last"
+    )
 
     # Plot per condition
     for cond in args.conditions:
@@ -456,11 +512,10 @@ def main():
         print(f"Best avg Accuracy: {best_acc:.2f}% at window={w_best_acc} ms")
         print(f"Best avg ITR:      {np.max(avg_itr):.2f} bit/min at window={w_best_itr} ms")
 
-
         # Find also variations at best itr
         acc_at_best_itr = avg_acc[int(np.argmax(avg_itr))]
         print(f"Accuracy at best ITR:      {acc_at_best_itr:.2f}%")
-        reduction = (((best_acc-acc_at_best_itr)/best_acc))*100
+        reduction = (((best_acc - acc_at_best_itr) / best_acc)) * 100
         print(f"Accuracy reduction:        {reduction:.2f}%")
 
 

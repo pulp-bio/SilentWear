@@ -1,3 +1,12 @@
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 models_factory.py
 
@@ -23,9 +32,10 @@ from typing import Any, Callable, Dict, Optional, Union, Literal
 import torch.nn as nn
 import sys
 from pathlib import Path
-PROJECT_ROOT = Path(__file__).resolve().parents[1]   
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
-PROJECT_ROOT = Path(__file__).resolve().parents[2]     
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
@@ -60,6 +70,7 @@ class ModelSpec:
     kwargs:
         model-specific keyword arguments
     """
+
     kind: ModelKind
     name: str
     kwargs: Dict[str, Any] = field(default_factory=dict)
@@ -69,29 +80,35 @@ class ModelSpec:
 # Registration decorators
 # -------------------------------------------------------------------------------------------------
 
+
 def register_dl_model(name: str):
     """Decorator to register a deep learning model factory."""
+
     def deco(fn: DLFactory) -> DLFactory:
         if name in DL_MODEL_REGISTRY:
             raise ValueError(f"DL model '{name}' already registered.")
         DL_MODEL_REGISTRY[name] = fn
         return fn
+
     return deco
 
 
 def register_ml_model(name: str):
     """Decorator to register a classical ML model factory."""
+
     def deco(fn: MLFactory) -> MLFactory:
         if name in ML_MODEL_REGISTRY:
             raise ValueError(f"ML model '{name}' already registered.")
         ML_MODEL_REGISTRY[name] = fn
         return fn
+
     return deco
 
 
 # -------------------------------------------------------------------------------------------------
 # Unified builders
 # -------------------------------------------------------------------------------------------------
+
 
 def build_model(
     *,
@@ -100,7 +117,7 @@ def build_model(
     factory: Optional[Callable[..., Any]] = None,
     model_kwargs: Optional[Dict[str, Any]] = None,
     ctx: Optional[Dict[str, Any]] = None,
-    ) -> Union[nn.Module, MLEstimator]:
+) -> Union[nn.Module, MLEstimator]:
     """
     Build and return a model instance (DL or ML).
 
@@ -144,7 +161,7 @@ def build_model(
             obj = factory(**ctx, **model_kwargs)
             if not isinstance(obj, nn.Module):
                 raise TypeError("DL factory did not return nn.Module.")
-        
+
         elif kind == "ml":
             if name not in ML_MODEL_REGISTRY:
                 raise KeyError(f"Unknown ML model '{name}'. Available: {sorted(ML_MODEL_REGISTRY)}")
@@ -156,7 +173,7 @@ def build_model(
 
     if not callable(factory):
         raise TypeError("Factory must be callable.")
-    
+
     return obj
 
 
@@ -166,15 +183,17 @@ def build_model_from_spec(spec: ModelSpec, ctx: Dict[str, Any]) -> Union[nn.Modu
 
 
 # -------------------------------------------------------------------------------------------------
-# Classical ML registrations 
+# Classical ML registrations
 # -------------------------------------------------------------------------------------------------
+
 
 @register_ml_model("random_forest")
 def random_forest_factory(
     random_state: int = 0,
     **kwargs,
-    ):
+):
     from sklearn.ensemble import RandomForestClassifier
+
     default = dict(
         n_estimators=100,
         random_state=random_state,
@@ -190,6 +209,7 @@ def random_forest_factory(
 # DL Registrations
 # -------------------------------------------------------------------------------------------------
 
+
 @register_dl_model("speechnet")
 def speechnet(
     *,
@@ -197,7 +217,7 @@ def speechnet(
     num_samples: int,
     num_classes: int,
     **model_kwargs,
-    ) -> nn.Module:
+) -> nn.Module:
     """
     Factory for EpiDeNet.
 
@@ -211,11 +231,11 @@ def speechnet(
       - anything else (future-proof), passed through if supported
     """
     from models.cnn_architectures.SpeechNet import SpeechNet
-    #print("speech net base with kwars", model_kwargs)
+
+    # print("speech net base with kwars", model_kwargs)
     return SpeechNet(
         C=num_channels,
         T=num_samples,
         output_classes=num_classes,
-        **model_kwargs,   # <-- passes blocks_config, dropout, etc.
+        **model_kwargs,  # <-- passes blocks_config, dropout, etc.
     )
-

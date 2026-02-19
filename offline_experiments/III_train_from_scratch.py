@@ -1,3 +1,12 @@
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """Train-from-scratch Evaluation Setting
 
 This experiment performs a progressive fine-tuning (FT) procedure **without any pre-training**:
@@ -47,7 +56,9 @@ def build_bs_directory(model_base_folder: Path) -> Path:
     raise RuntimeError("Could not find a free bs_config_<N> directory name.")
 
 
-def build_tfs_model_cfg(model_config: dict, tfs_cfg: dict, save_path: Optional[Path] = None) -> dict:
+def build_tfs_model_cfg(
+    model_config: dict, tfs_cfg: dict, save_path: Optional[Path] = None
+) -> dict:
     """Build the incremental training config starting from the base model_cfg."""
     model_config = copy.deepcopy(model_config)
     train_cfg = model_config["model"]["kwargs"]["train_cfg"]
@@ -139,13 +150,7 @@ def run_train_from_scratch_for(
 
     artifacts_root = Path(base_cfg["data"]["models_main_directory"])
     model_base_folder = (
-        artifacts_root
-        / "models"
-        / "train_from_scratch"
-        / sub
-        / cond
-        / model_name
-        / str(model_id)
+        artifacts_root / "models" / "train_from_scratch" / sub / cond / model_name / str(model_id)
     )
     model_base_folder.mkdir(parents=True, exist_ok=True)
 
@@ -159,7 +164,9 @@ def run_train_from_scratch_for(
     with open(model_bs_folder / "run_cfg_min.json", "w") as f:
         json.dump(run_cfg_min, f, indent=4)
 
-    tfs_model_cfg = build_tfs_model_cfg(model_cfg, tfs_cfg, save_path=model_bs_folder / "tfs_cfg.json")
+    tfs_model_cfg = build_tfs_model_cfg(
+        model_cfg, tfs_cfg, save_path=model_bs_folder / "tfs_cfg.json"
+    )
 
     win_size_ms = int(base_cfg["window"]["window_size_s"] * 1000)
     data_directories = check_data_directories(
@@ -190,12 +197,16 @@ def run_train_from_scratch_for(
                 model_to_ft = None
                 model_to_name = "RANDOM_INIT"
 
-                lr_first = tfs_cfg.get("lr_first_train", tfs_model_cfg["model"]["kwargs"]["train_cfg"]["lr"])
+                lr_first = tfs_cfg.get(
+                    "lr_first_train", tfs_model_cfg["model"]["kwargs"]["train_cfg"]["lr"]
+                )
                 epochs_first = tfs_cfg.get(
                     "num_epochs_first_train",
                     tfs_model_cfg["model"]["kwargs"]["train_cfg"]["num_epochs"],
                 )
-                batch_model_cfg = tfs_cfg_first_run(tfs_model_cfg, lr_new=float(lr_first), num_epochs_new=int(epochs_first))
+                batch_model_cfg = tfs_cfg_first_run(
+                    tfs_model_cfg, lr_new=float(lr_first), num_epochs_new=int(epochs_first)
+                )
             else:
                 model_to_ft = model_bs_folder / f"session_{fold_id}_bs_{batch_id-1}.pt"
                 model_to_name = model_to_ft.name
@@ -207,9 +218,11 @@ def run_train_from_scratch_for(
             if base_cfg["experiment"].get("include_rest", False):
                 min_samples = df_batch["Label_int"].value_counts().min()
                 idx_rest = df_batch[df_batch["Label_str"] == "rest"].index.values
-                index_rest_ds = df_batch[df_batch["Label_str"] == "rest"].sample(
-                    n=min_samples, random_state=base_cfg["experiment"]["seed"]
-                ).index.values
+                index_rest_ds = (
+                    df_batch[df_batch["Label_str"] == "rest"]
+                    .sample(n=min_samples, random_state=base_cfg["experiment"]["seed"])
+                    .index.values
+                )
                 idx_to_drop = np.setdiff1d(idx_rest, index_rest_ds)
                 df_batch = df_batch.drop(index=idx_to_drop)
 
@@ -250,7 +263,9 @@ def run_train_from_scratch_for(
 
             prev_round += 1
             experiment_summary.append(row)
-            pd.DataFrame(experiment_summary).to_csv(model_bs_folder / "train_from_scratch_summary.csv", index=False)
+            pd.DataFrame(experiment_summary).to_csv(
+                model_bs_folder / "train_from_scratch_summary.csv", index=False
+            )
 
     return model_bs_folder
 

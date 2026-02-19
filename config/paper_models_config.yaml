@@ -10,20 +10,20 @@ condition: vocalized
 window:
   window_size_s: 1.4
 channel_order:
-- 0
-- 1
-- 2
-- 5
-- 3
-- 4
-- 7
-- 6
-- 8
-- 15
-- 9
-- 14
-- 10
-- 13
+  - 0
+  - 1
+  - 2
+  - 5
+  - 3
+  - 4
+  - 7
+  - 6
+  - 8
+  - 15
+  - 9
+  - 14
+  - 10
+  - 13
 
 experiment:
   seed: 42

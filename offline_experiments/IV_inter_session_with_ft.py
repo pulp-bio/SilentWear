@@ -1,3 +1,12 @@
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 Inter-session + Fine-Tuning Evaluation Setting.
 
@@ -144,36 +153,24 @@ def return_batches_for_ft(ft_cfg: dict, df_for_ft: pd.DataFrame) -> Tuple[List[i
     raise ValueError(f"Unknown batch_ft_scheme: {scheme}")
 
 
-def _base_intersession_folder(base_cfg: dict, model_cfg: dict, ft_cfg: dict, sub: str, cond: str) -> Path:
+def _base_intersession_folder(
+    base_cfg: dict, model_cfg: dict, ft_cfg: dict, sub: str, cond: str
+) -> Path:
     model_name = model_cfg["model"]["name"]
     model_id = ft_cfg.get("model_name_id", base_cfg.get("model_name_id", "w1400ms"))
     artifacts_root = Path(base_cfg["data"]["models_main_directory"])
 
-    return (
-        artifacts_root
-        / "models"
-        / "inter_session_ft"
-        / sub
-        / cond
-        / model_name
-        / str(model_id)
-    )
+    return artifacts_root / "models" / "inter_session_ft" / sub / cond / model_name / str(model_id)
 
 
-def _ft_output_root(base_cfg: dict, model_cfg: dict, ft_cfg: dict, sub: str, cond: str, model_id: str) -> Path:
+def _ft_output_root(
+    base_cfg: dict, model_cfg: dict, ft_cfg: dict, sub: str, cond: str, model_id: str
+) -> Path:
     model_name = model_cfg["model"]["name"]
     model_id = ft_cfg.get("model_name_id", base_cfg.get("model_name_id", "w1400ms"))
     artifacts_root = Path(base_cfg["data"]["models_main_directory"])
 
-    return (
-        artifacts_root
-        / "models"
-        / "inter_session_ft"
-        / sub
-        / cond
-        / model_name
-        / model_id
-    )
+    return artifacts_root / "models" / "inter_session_ft" / sub / cond / model_name / model_id
 
 
 def run_ft_for(
@@ -182,7 +179,7 @@ def run_ft_for(
     base_cfg: dict,
     model_cfg: dict,
     ft_cfg: dict,
-    ) -> Path:
+) -> Path:
     """Run FT for one subject/condition. Returns created ft_config_<N> folder."""
     base_cfg = copy.deepcopy(base_cfg)
     base_cfg["data"]["subject_id"] = sub
@@ -215,14 +212,18 @@ def run_ft_for(
     )
 
     # FT output root (separate from base inter-session folder)
-    ft_root = _ft_output_root(base_cfg, model_cfg, ft_cfg, sub, cond, model_id = str(model_base_folder.name))
+    ft_root = _ft_output_root(
+        base_cfg, model_cfg, ft_cfg, sub, cond, model_id=str(model_base_folder.name)
+    )
     ft_root.mkdir(parents=True, exist_ok=True)
     model_ft_base_folder = build_ft_directory(ft_root)
 
     # Build fine-tune model config based on the base run config to match paper
     base_cfg_used = run_cfg["base_cfg"]
     model_cfg_used = run_cfg["model_cfg"]
-    new_ft_model_cfg = build_ft_model_cfg(model_cfg_used, ft_cfg, save_path=model_ft_base_folder / "ft_cfg.json")
+    new_ft_model_cfg = build_ft_model_cfg(
+        model_cfg_used, ft_cfg, save_path=model_ft_base_folder / "ft_cfg.json"
+    )
 
     # Load data
     win_size_ms = int(base_cfg_used["window"]["window_size_s"] * 1000)
@@ -267,9 +268,11 @@ def run_ft_for(
             if base_cfg_used["experiment"].get("include_rest", False):
                 min_samples = df_batch["Label_int"].value_counts().min()
                 idx_rest = df_batch[df_batch["Label_str"] == "rest"].index.values
-                index_rest_ds = df_batch[df_batch["Label_str"] == "rest"].sample(
-                    n=min_samples, random_state=base_cfg_used["experiment"]["seed"]
-                ).index.values
+                index_rest_ds = (
+                    df_batch[df_batch["Label_str"] == "rest"]
+                    .sample(n=min_samples, random_state=base_cfg_used["experiment"]["seed"])
+                    .index.values
+                )
                 idx_to_drop = np.setdiff1d(idx_rest, index_rest_ds)
                 df_batch = df_batch.drop(index=idx_to_drop)
 
@@ -300,7 +303,9 @@ def run_ft_for(
                 "condition": cond,
                 "base_model": base_model_to_ft.name,
                 "test_session": test_session,
-                "model_to_fine_tune_name": Path(model_to_ft).name if model_to_ft is not None else "NONE",
+                "model_to_fine_tune_name": (
+                    Path(model_to_ft).name if model_to_ft is not None else "NONE"
+                ),
                 "zero_shot_test_batch": int(batch_id),
                 "num_prev_ft_rounds": int(prev_round),
                 "zero_shot_balanced_acc": float(metrics_before["balanced_accuracy"]),
@@ -315,7 +320,9 @@ def run_ft_for(
 
             prev_round += 1
             experiment_summary.append(row)
-            pd.DataFrame(experiment_summary).to_csv(model_ft_base_folder / "ft_summary.csv", index=False)
+            pd.DataFrame(experiment_summary).to_csv(
+                model_ft_base_folder / "ft_summary.csv", index=False
+            )
 
     return model_ft_base_folder
 

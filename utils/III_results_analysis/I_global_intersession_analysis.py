@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 Summarize and visualize results from:
 - Global experiments
@@ -38,14 +47,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
 import sys
-PROJECT_ROOT = Path(__file__).resolve().parents[1]   
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
-PROJECT_ROOT = Path(__file__).resolve().parents[2]   
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 from utils.I_data_preparation.experimental_config import ORIGINAL_LABELS
 
 
 # ----------------------------- helpers -----------------------------
+
 
 @dataclass
 class RunRef:
@@ -53,8 +64,8 @@ class RunRef:
     condition: str
     model_name: str
     model_name_id: str
-    model_run: str              # e.g. model_6
-    run_path: Path              # .../model_6
+    model_run: str  # e.g. model_6
+    run_path: Path  # .../model_6
     cv_summary_csv: Path
     run_cfg_json: Path
 
@@ -210,6 +221,7 @@ def _parse_cm_cell(x) -> np.ndarray:
         obj = json.loads(s)
     except Exception:
         import ast
+
         obj = ast.literal_eval(s)
     return np.asarray(obj, dtype=float)
 
@@ -249,25 +261,45 @@ def _infer_display_labels(run_cfg_path: Path, fallback_n: int) -> List[str]:
 
 # ----------------------------- main analysis -----------------------------
 
+
 def main():
     ap = argparse.ArgumentParser()
 
-    ap.add_argument("--artifacts_dir", type=Path, default=None,
-                    help="Root artifacts folder (default: env SILENTWEAR_ARTIFACTS_DIR or ./artifacts)")
+    ap.add_argument(
+        "--artifacts_dir",
+        type=Path,
+        default=None,
+        help="Root artifacts folder (default: env SILENTWEAR_ARTIFACTS_DIR or ./artifacts)",
+    )
     ap.add_argument("--experiment", type=str, choices=["global", "inter_session"], required=True)
 
     ap.add_argument("--subjects", nargs="+", default=["S01", "S02", "S03", "S04"])
     ap.add_argument("--conditions", nargs="+", default=["silent", "vocalized"])
 
-    ap.add_argument("--model_name", type=str, required=True, help="e.g., speechnet or random_forest")
-    ap.add_argument("--model_run", type=str, default=None,
-                    help="e.g., model_6. If omitted, uses latest model_<k> per folder.")
+    ap.add_argument(
+        "--model_name", type=str, required=True, help="e.g., speechnet or random_forest"
+    )
+    ap.add_argument(
+        "--model_run",
+        type=str,
+        default=None,
+        help="e.g., model_6. If omitted, uses latest model_<k> per folder.",
+    )
 
     # Window selection
-    ap.add_argument("--model_name_id", type=str, default=None,
-                    help="e.g., w1400ms. If provided, overrides --windows_s expansion.")
-    ap.add_argument("--windows_s", nargs="*", type=float, default=[],
-                    help="If model_name_id not set: either <start end> or explicit list. Default: 0.4..1.4 step 0.2")
+    ap.add_argument(
+        "--model_name_id",
+        type=str,
+        default=None,
+        help="e.g., w1400ms. If provided, overrides --windows_s expansion.",
+    )
+    ap.add_argument(
+        "--windows_s",
+        nargs="*",
+        type=float,
+        default=[],
+        help="If model_name_id not set: either <start end> or explicit list. Default: 0.4..1.4 step 0.2",
+    )
     ap.add_argument("--window_step_s", type=float, default=0.2)
 
     # Outputs
@@ -275,7 +307,9 @@ def main():
     ap.add_argument("--figures_dir", type=Path, default=None)
 
     ap.add_argument("--plot_confusion_matrix", action="store_true")
-    ap.add_argument("--transparent", action="store_true", help="Save figures with transparent background")
+    ap.add_argument(
+        "--transparent", action="store_true", help="Save figures with transparent background"
+    )
 
     args = ap.parse_args()
 
@@ -321,7 +355,9 @@ def main():
     # For each window + condition, build per-subject summary + (optional) confusion matrices
     for (mid, cond), run_list in sorted(by_mid_cond.items(), key=lambda x: (x[0][0], x[0][1])):
         print("\n" + "=" * 90)
-        print(f"Experiment: {args.experiment} | Model: {args.model_name} | model_name_id: {mid} | Condition: {cond}")
+        print(
+            f"Experiment: {args.experiment} | Model: {args.model_name} | model_name_id: {mid} | Condition: {cond}"
+        )
         print("=" * 90)
 
         rows = []
@@ -332,24 +368,31 @@ def main():
                 continue
             if len(rr) > 1:
                 # if multiple matches, pick the one with the largest model_k or first
-                rr = sorted(rr, key=lambda x: int(x.model_run.split("_")[-1]) if x.model_run.startswith("model_") else -1)
+                rr = sorted(
+                    rr,
+                    key=lambda x: (
+                        int(x.model_run.split("_")[-1]) if x.model_run.startswith("model_") else -1
+                    ),
+                )
             r = rr[-1]
 
             df = pd.read_csv(r.cv_summary_csv)
             bal_col = _pick_bal_acc_col(df)
             bal_vals = df[bal_col].astype(float).to_numpy()
 
-            rows.append({
-                "subject": sub,
-                "condition": cond,
-                "model_name": args.model_name,
-                "model_name_id": mid,
-                "model_run": r.model_run,
-                "run_path": str(r.run_path),
-                "balanced_acc_mean": float(np.mean(bal_vals)),
-                "balanced_acc_std": float(np.std(bal_vals)),
-                "balanced_acc_vals": json.dumps(bal_vals.tolist()),
-            })
+            rows.append(
+                {
+                    "subject": sub,
+                    "condition": cond,
+                    "model_name": args.model_name,
+                    "model_name_id": mid,
+                    "model_run": r.model_run,
+                    "run_path": str(r.run_path),
+                    "balanced_acc_mean": float(np.mean(bal_vals)),
+                    "balanced_acc_std": float(np.std(bal_vals)),
+                    "balanced_acc_vals": json.dumps(bal_vals.tolist()),
+                }
+            )
 
         if len(rows) == 0:
             print(f"[WARN] No subjects found for {mid} / {cond}")
@@ -384,7 +427,9 @@ def main():
 
         # Save CSV
         model_run_tag = args.model_run if args.model_run else "latest"
-        out_csv = tables_dir / f"{args.model_name}_{model_run_tag}_{cond}_{mid}_{args.experiment}.csv"
+        out_csv = (
+            tables_dir / f"{args.model_name}_{model_run_tag}_{cond}_{mid}_{args.experiment}.csv"
+        )
         summary_subjects.to_csv(out_csv, index=False)
         print(summary_subjects[["subject", "mean_std_perc"]])
         print(f"[SAVED] {out_csv}")
@@ -394,14 +439,15 @@ def main():
             n_subj = len(args.subjects)
             nrows, ncols = 2, 2
             fig, axs = plt.subplots(
-                nrows, ncols,
+                nrows,
+                ncols,
                 figsize=(10, 4.5 * nrows),
-                sharex=True, sharey=True,
-                constrained_layout=False
+                sharex=True,
+                sharey=True,
+                constrained_layout=False,
             )
             fig.subplots_adjust(
-                left=0.12, right=0.98, top=0.92, bottom=0.10,
-                wspace=0.08, hspace=0.25
+                left=0.12, right=0.98, top=0.92, bottom=0.10, wspace=0.08, hspace=0.25
             )
             axs = np.atleast_2d(axs)
 
@@ -426,7 +472,6 @@ def main():
                     continue
 
                 cm_mean, cm_std = mean_std_confusion_matrices(df[cm_col])
-
 
                 disp_labels = list(ORIGINAL_LABELS.values())
                 print(disp_labels)
@@ -468,16 +513,15 @@ def main():
             for row in range(nrows):
                 if row in row_images:
                     cbar = fig.colorbar(
-                        row_images[row],
-                        ax=axs[row, :],
-                        location="left",
-                        fraction=0.05,
-                        pad=0.15
+                        row_images[row], ax=axs[row, :], location="left", fraction=0.05, pad=0.15
                     )
                     cbar.ax.tick_params(labelsize=15)
                     cbar.set_label("Accuracy", fontsize=15)
 
-            out_fig = figures_dir / f"{args.model_name}_{model_run_tag}_{cond}_{mid}_{args.experiment}_cm_2x2.svg"
+            out_fig = (
+                figures_dir
+                / f"{args.model_name}_{model_run_tag}_{cond}_{mid}_{args.experiment}_cm_2x2.svg"
+            )
             plt.savefig(out_fig, bbox_inches="tight", transparent=args.transparent)
             plt.close(fig)
             print(f"[SAVED] {out_fig}")

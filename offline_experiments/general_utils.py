@@ -1,33 +1,39 @@
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 General Utilities for Offline Experiments
 """
 
-
 import sys
-from pathlib import Path 
-import re 
-import pandas as pd
-import json
-import sys
-import datetime
-from copy import deepcopy
 from pathlib import Path
+import re
+import json
+import datetime
 
 import yaml
 
 
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]   
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
-PROJECT_ROOT = Path(__file__).resolve().parents[2]     
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 from utils.II_feature_extraction.FeatExtractorManager import FeatureRegistry
 
 #################################### Utils for Data Preparation ######################################
 
-def feature_names_to_consider(consider_time_feats: bool = True,
-                              consider_freq_feats: bool = True, 
-                              consider_wavelet_feats: bool = True):
+
+def feature_names_to_consider(
+    consider_time_feats: bool = True,
+    consider_freq_feats: bool = True,
+    consider_wavelet_feats: bool = True,
+):
     """
     Returns the base feature names to consider depending on flags.
     """
@@ -62,7 +68,6 @@ def feature_columns_to_consider(feature_names, df):
     return selected_cols
 
 
-
 def reorder_ml_features_by_channel(cols, channel_order):
     """
     Reorder ML feature columns based on channel_order.
@@ -89,8 +94,8 @@ def reorder_ml_features_by_channel(cols, channel_order):
     return [col for _, col in parsed_sorted]
 
 
-
 #################################### Utils to override configs ######################################
+
 
 def deep_update(d: dict, u: dict) -> dict:
     """Recursively update dict d with dict u (u wins)."""
@@ -104,10 +109,12 @@ def deep_update(d: dict, u: dict) -> dict:
 
 #################### Utils to Keep Track of Runs ##############################
 
+
 def mark_running(run_dir: Path, meta: dict):
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "RUNNING").write_text(datetime.now().isoformat())
     (run_dir / "meta.json").write_text(json.dumps(meta, indent=2))
+
 
 def mark_done(run_dir: Path):
     running = run_dir / "RUNNING"
@@ -115,12 +122,14 @@ def mark_done(run_dir: Path):
         running.unlink()
     (run_dir / "DONE").write_text(datetime.now().isoformat())
 
+
 def mark_failed(run_dir: Path, err: str):
     (run_dir / "FAILED").write_text(err)
     # keep RUNNING as evidence if you want; or remove it:
     running = run_dir / "RUNNING"
     if running.exists():
         running.unlink()
+
 
 def should_skip(run_dir: Path, *, rerun_failed=False, rerun_running=False) -> bool:
     if (run_dir / "DONE").exists():
@@ -133,6 +142,7 @@ def should_skip(run_dir: Path, *, rerun_failed=False, rerun_running=False) -> bo
 
 
 #################### Utils for data loading ################################
+
 
 ## TO-DO: check which functions use this and replace with load_function in utils/general_utils.py
 def load_yaml(path: Path) -> dict:
@@ -153,7 +163,7 @@ def check_data_directories(
     condition: str,
     window_size_ms: int,
     base_config: dict,
-    ) :
+):
     """
     Returns data directories contaning data for training, depending on the desired training config
 
@@ -173,10 +183,16 @@ def check_data_directories(
 
     def add_dirs_for_subject(subject):
         if condition != "voc_and_silent":
-            data_dirs.append(main_data_directory / Path(f"{win_root}/{subject}/{condition}/WIN_{window_size_ms}"))
+            data_dirs.append(
+                main_data_directory / Path(f"{win_root}/{subject}/{condition}/WIN_{window_size_ms}")
+            )
         else:
-            data_dirs.append(main_data_directory / Path(f"{win_root}/{subject}/silent/WIN_{window_size_ms}"))
-            data_dirs.append(main_data_directory / Path(f"{win_root}/{subject}/vocalized/WIN_{window_size_ms}"))
+            data_dirs.append(
+                main_data_directory / Path(f"{win_root}/{subject}/silent/WIN_{window_size_ms}")
+            )
+            data_dirs.append(
+                main_data_directory / Path(f"{win_root}/{subject}/vocalized/WIN_{window_size_ms}")
+            )
 
     # ---- single subject ----
     if not all_subjects_models:
@@ -189,8 +205,7 @@ def check_data_directories(
     missing = [p for p in data_dirs if not p.exists()]
     if missing:
         raise FileNotFoundError(
-            "The following data directories do not exist:\n"
-            + "\n".join(str(p) for p in missing)
+            "The following data directories do not exist:\n" + "\n".join(str(p) for p in missing)
         )
 
     return data_dirs

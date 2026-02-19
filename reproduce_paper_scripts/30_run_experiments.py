@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 Experiment Orchestrator for Paper Reproducibility
 ==================================================
@@ -32,7 +41,7 @@ Inter-Session Window Ablations
 ------------------------------
 The argument `--inter_session_windows_s` supports three modes:
 
-1) Two values → interpreted as range endpoints  
+1) Two values → interpreted as range endpoints
    Example:
        --inter_session_windows_s 0.4 1.4
 
@@ -156,7 +165,9 @@ def _run_one_subject_condition(
 
     if experiment == "inter_session":
         print(f"\n=== INTER-SESSION | {sub} | {cond} | {model_name_id} ===")
-        trainer = Inter_Session_Model_Trainer(base_config=cfg_run, model_config=model_cfg, experiment_subdir="inter_session")
+        trainer = Inter_Session_Model_Trainer(
+            base_config=cfg_run, model_config=model_cfg, experiment_subdir="inter_session"
+        )
         if hasattr(trainer, "main"):
             trainer.main()
         return
@@ -167,7 +178,9 @@ def _run_one_subject_condition(
         ft_cfg_local = deepcopy(ft_cfg)
         ft_cfg_local["model_name_id"] = model_name_id
         print(f"\n=== INTER-SESSION + FT | {sub} | {cond} | {model_name_id} ===")
-        trainer = FineTuning_Model_Trainer(base_config=cfg_run, model_config=model_cfg, ft_cfg=ft_cfg_local)
+        trainer = FineTuning_Model_Trainer(
+            base_config=cfg_run, model_config=model_cfg, ft_cfg=ft_cfg_local
+        )
         # your fixed version: trainer.main() exists and returns Path
         if hasattr(trainer, "main"):
             trainer.main()
@@ -180,7 +193,9 @@ def _run_one_subject_condition(
         tfs_cfg_local["model_name_id"] = model_name_id
         print(f"\n=== TRAIN-FROM-SCRATCH | {sub} | {cond} | {model_name_id} ===")
         # your fixed TFS trainer runs full sweep in __init__
-        trainer=TrainFromScratch_Model_Trainer(base_config=cfg_run, model_config=model_cfg, tfs_cfg=tfs_cfg_local)
+        trainer = TrainFromScratch_Model_Trainer(
+            base_config=cfg_run, model_config=model_cfg, tfs_cfg=tfs_cfg_local
+        )
         trainer.main()
         return
 
@@ -255,7 +270,6 @@ def main():
     # Expand inter-session ablation windows
     inter_session_windows = _expand_windows_s(args.inter_session_windows_s, step=args.window_step_s)
 
-
     if "global" in args.experiment:
         for sub in args.subjects:
             for cond in args.conditions:
@@ -269,7 +283,9 @@ def main():
                     base_cfg_w = deepcopy(base_cfg)
                     base_cfg_w.setdefault("window", {})
                     base_cfg_w["window"]["window_size_s"] = float(w_s)
-                    _run_one_subject_condition("inter_session", base_cfg_w, model_cfg, sub, cond, {}, {})
+                    _run_one_subject_condition(
+                        "inter_session", base_cfg_w, model_cfg, sub, cond, {}, {}
+                    )
 
     if "train_from_scratch" in args.experiment:
         for sub in args.subjects:
@@ -278,7 +294,9 @@ def main():
                     base_cfg_w = deepcopy(base_cfg)
                     base_cfg_w.setdefault("window", {})
                     base_cfg_w["window"]["window_size_s"] = float(w_s)
-                    _run_one_subject_condition("train_from_scratch", base_cfg_w, model_cfg, sub, cond, ft_cfg, tfs_cfg)
+                    _run_one_subject_condition(
+                        "train_from_scratch", base_cfg_w, model_cfg, sub, cond, ft_cfg, tfs_cfg
+                    )
 
     if "inter_session_ft" in args.experiment:
         for sub in args.subjects:
@@ -287,7 +305,9 @@ def main():
                     base_cfg_w = deepcopy(base_cfg)
                     base_cfg_w.setdefault("window", {})
                     base_cfg_w["window"]["window_size_s"] = float(w_s)
-                    _run_one_subject_condition("inter_session_ft", base_cfg_w, model_cfg, sub, cond, ft_cfg, tfs_cfg)
+                    _run_one_subject_condition(
+                        "inter_session_ft", base_cfg_w, model_cfg, sub, cond, ft_cfg, tfs_cfg
+                    )
 
     # for sub in args.subjects:
     #     for cond in args.conditions:

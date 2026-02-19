@@ -6,7 +6,5 @@ model:
   features:
     time_features: true
     freq_features: true
-    wavelet_features : true
-    scale_feats : false
-
-  
+    wavelet_features: true
+    scale_feats: false

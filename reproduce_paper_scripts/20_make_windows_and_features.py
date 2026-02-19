@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 Generate windowed EMG and (optional) handcrafted features.
 
@@ -33,7 +42,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from utils.general_utils import SubjectConfig  # type: ignore
-from utils.II_feature_extraction.win_feature_extraction_main import (Global_Windower_and_Feature_Extractor)
+from utils.II_feature_extraction.win_feature_extraction_main import (
+    Global_Windower_and_Feature_Extractor,
+)
 
 
 DEFAULT_WINDOWS_S = [0.4, 0.6, 0.8, 1.0, 1.2, 1.4]
@@ -122,7 +133,9 @@ def main() -> None:
 
                 if manual_features_override is not None:
                     cfg.setdefault("feature_extraction", {})
-                    cfg["feature_extraction"]["manual_feature_extraction"] = bool(manual_features_override)
+                    cfg["feature_extraction"]["manual_feature_extraction"] = bool(
+                        manual_features_override
+                    )
 
                 print("\n" + "=" * 80)
                 print(f"[WINDOWING] subject={sub} | condition={cond} | window_s={window_s}")

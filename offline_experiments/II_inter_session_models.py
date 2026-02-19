@@ -1,3 +1,12 @@
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 Inter-session models (subject-specific or pooled).
 
@@ -39,7 +48,9 @@ from utils.general_utils import load_all_h5files_from_folder, print_dataset_summ
 
 
 class Inter_Session_Model_Trainer:
-    def __init__(self, base_config: dict, model_config: dict, experiment_subdir: str = "inter_session") -> None:
+    def __init__(
+        self, base_config: dict, model_config: dict, experiment_subdir: str = "inter_session"
+    ) -> None:
         self.base_config = deepcopy(base_config)
         self.model_config = deepcopy(model_config)
         self.model_master: Optional[Model_Master] = None
@@ -54,7 +65,9 @@ class Inter_Session_Model_Trainer:
         else:
             raise ValueError("base_config['data']['subject_id'] must be a string or list")
 
-        self.condition = self.base_config["condition"]  # silent | vocalized | voc_and_silent (legacy)
+        self.condition = self.base_config[
+            "condition"
+        ]  # silent | vocalized | voc_and_silent (legacy)
         self.main_dire = Path(self.base_config["data"]["data_directory"])
         self.main_model_dire = Path(self.base_config["data"]["models_main_directory"])
         self.model_name = self.model_config["model"]["name"]
@@ -123,20 +136,52 @@ class Inter_Session_Model_Trainer:
         if not self.all_subjects_models:
             if self.condition != "voc_and_silent":
                 self.data_dire_proc.append(
-                    self.main_dire / win_feats_root / str(self.sub_id) / str(self.condition) / f"WIN_{self.window_size_ms}"
+                    self.main_dire
+                    / win_feats_root
+                    / str(self.sub_id)
+                    / str(self.condition)
+                    / f"WIN_{self.window_size_ms}"
                 )
             else:
-                self.data_dire_proc.append(self.main_dire / win_feats_root / str(self.sub_id) / "silent" / f"WIN_{self.window_size_ms}")
-                self.data_dire_proc.append(self.main_dire / win_feats_root / str(self.sub_id) / "vocalized" / f"WIN_{self.window_size_ms}")
+                self.data_dire_proc.append(
+                    self.main_dire
+                    / win_feats_root
+                    / str(self.sub_id)
+                    / "silent"
+                    / f"WIN_{self.window_size_ms}"
+                )
+                self.data_dire_proc.append(
+                    self.main_dire
+                    / win_feats_root
+                    / str(self.sub_id)
+                    / "vocalized"
+                    / f"WIN_{self.window_size_ms}"
+                )
         else:
             for curr_sub_id in self.sub_id:
                 if self.condition != "voc_and_silent":
                     self.data_dire_proc.append(
-                        self.main_dire / win_feats_root / str(curr_sub_id) / str(self.condition) / f"WIN_{self.window_size_ms}"
+                        self.main_dire
+                        / win_feats_root
+                        / str(curr_sub_id)
+                        / str(self.condition)
+                        / f"WIN_{self.window_size_ms}"
                     )
                 else:
-                    self.data_dire_proc.append(self.main_dire / win_feats_root / str(curr_sub_id) / "silent" / f"WIN_{self.window_size_ms}")
-                    self.data_dire_proc.append(self.main_dire / win_feats_root / str(curr_sub_id) / "vocalized" / f"WIN_{self.window_size_ms}")
+                    self.data_dire_proc.append(
+                        self.main_dire
+                        / win_feats_root
+                        / str(curr_sub_id)
+                        / "silent"
+                        / f"WIN_{self.window_size_ms}"
+                    )
+                    self.data_dire_proc.append(
+                        self.main_dire
+                        / win_feats_root
+                        / str(curr_sub_id)
+                        / "vocalized"
+                        / f"WIN_{self.window_size_ms}"
+                    )
 
         for d in self.data_dire_proc:
             if not d.exists():
@@ -172,7 +217,9 @@ class Inter_Session_Model_Trainer:
         sessions = np.sort(self.df["session_id"].unique())
 
         for fold_id, test_session_id in enumerate(sessions):
-            print(f"\n\n=== LOSO FOLD {fold_id+1}/{len(sessions)} | test_session={test_session_id} ===")
+            print(
+                f"\n\n=== LOSO FOLD {fold_id+1}/{len(sessions)} | test_session={test_session_id} ==="
+            )
 
             train_val_data = self.df[self.df["session_id"] != test_session_id]
             test_data = self.df[self.df["session_id"] == test_session_id]
@@ -180,7 +227,11 @@ class Inter_Session_Model_Trainer:
             if self.include_rest:
                 min_samples = train_val_data["Label_int"].value_counts().min()
                 idx_rest = train_val_data[train_val_data["Label_str"] == "rest"].index.values
-                index_rest_ds = train_val_data[train_val_data["Label_str"] == "rest"].sample(n=min_samples, random_state=seed).index.values
+                index_rest_ds = (
+                    train_val_data[train_val_data["Label_str"] == "rest"]
+                    .sample(n=min_samples, random_state=seed)
+                    .index.values
+                )
                 idx_to_drop = np.setdiff1d(idx_rest, index_rest_ds)
                 train_val_data = train_val_data.drop(index=idx_to_drop)
 
@@ -204,8 +255,15 @@ class Inter_Session_Model_Trainer:
 
         return self.cv_summaries
 
-    def _run_one_fold(self, fold_id: int, train_df: pd.DataFrame, val_df: pd.DataFrame, test_df: pd.DataFrame,
-                      mode: str, test_session_id: Optional[int] = None) -> Dict[str, Any]:
+    def _run_one_fold(
+        self,
+        fold_id: int,
+        train_df: pd.DataFrame,
+        val_df: pd.DataFrame,
+        test_df: pd.DataFrame,
+        mode: str,
+        test_session_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
         self.model_master = Model_Master(self.base_config, self.model_config)
         self.model_master.df_train = train_df
         self.model_master.df_val = val_df
@@ -221,13 +279,15 @@ class Inter_Session_Model_Trainer:
                 train_df.loc[:, feat_cols] = scaler.fit_transform(train_df[feat_cols])
                 val_df.loc[:, feat_cols] = scaler.transform(val_df[feat_cols])
                 test_df.loc[:, feat_cols] = scaler.transform(test_df[feat_cols])
-        
+
         self.model_master.generate_training_labels()
         self.model_master.remap_all_datasets()
         self.model_master.register_model()
 
         save_model_path = self.model_dire / f"{mode}_fold_{fold_id+1}"
-        model, metrics, y_true, y_pred = self.model_master.train_model(test=True, save_model_path=save_model_path)
+        model, metrics, y_true, y_pred = self.model_master.train_model(
+            test=True, save_model_path=save_model_path
+        )
 
         row_summary: Dict[str, Any] = {
             "cv_mode": mode,
@@ -255,7 +315,9 @@ class Inter_Session_Model_Trainer:
         # Load data for the current subject/condition
         df = pd.DataFrame()
         for curr_data_dire in self.data_dire_proc:
-            df_curr = load_all_h5files_from_folder(curr_data_dire, key="wins_feats", print_statistics=False)
+            df_curr = load_all_h5files_from_folder(
+                curr_data_dire, key="wins_feats", print_statistics=False
+            )
             df = pd.concat((df, df_curr), ignore_index=True)
 
         self.df = df.reset_index(drop=True)
@@ -300,7 +362,9 @@ def main():
             print(f"Running Inter-Session Model | subject={sub} | condition={cond}")
             print("=" * 80)
 
-            trainer = Inter_Session_Model_Trainer(base_config=cfg_run, model_config=model_cfg, experiment_subdir="inter_session")
+            trainer = Inter_Session_Model_Trainer(
+                base_config=cfg_run, model_config=model_cfg, experiment_subdir="inter_session"
+            )
             out_dir = trainer.main()
             print(f"[DONE] outputs in: {out_dir}")
 

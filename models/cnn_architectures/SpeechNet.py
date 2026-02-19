@@ -1,14 +1,25 @@
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 SpeechNet Architecture
 """
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 import sys
-PROJECT_ROOT = Path(__file__).resolve().parents[2]   
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
+
 
 class SpeechNet(nn.Module):
     """
@@ -34,11 +45,11 @@ class SpeechNet(nn.Module):
         p_dropout: float = 0.0,
         global_pool: str = "avg",  # "avg" or "max"
         **kwargs,
-        ):
-        
-        #print("Speech net initialized with dropout,", p_dropout)
+    ):
 
-        #print("Other kwargs", kwargs)
+        # print("Speech net initialized with dropout,", p_dropout)
+
+        # print("Other kwargs", kwargs)
         super().__init__()
         self.C = C
         self.T = T
@@ -47,11 +58,11 @@ class SpeechNet(nn.Module):
         if blocks_config is None:
             # Example default that is close in spirit to your original (time-only kernels)
             blocks_config = [
-                dict(out_channels=4,  kernel=(1, 4),  pool=(1, 8)),
+                dict(out_channels=4, kernel=(1, 4), pool=(1, 8)),
                 dict(out_channels=16, kernel=(1, 16), pool=(1, 4)),
-                dict(out_channels=16, kernel=(1, 8),  pool=(1, 4)),
-                dict(out_channels=16, kernel=(14, 1), pool=(1, 1)),  
-                dict(out_channels=16, kernel=(14, 1),  pool=(1, 1)),
+                dict(out_channels=16, kernel=(1, 8), pool=(1, 4)),
+                dict(out_channels=16, kernel=(14, 1), pool=(1, 1)),
+                dict(out_channels=16, kernel=(14, 1), pool=(1, 1)),
             ]
 
         self.blocks = nn.ModuleList()
@@ -76,7 +87,14 @@ class SpeechNet(nn.Module):
             layers = []
 
             # Apply Padding on the time dimension
-            conv = nn.Conv2d(in_ch, out_ch, kernel_size=(int(k_c), int(k_t)), stride=stride, padding=(0, int(k_t)//2), padding_mode='zeros')
+            conv = nn.Conv2d(
+                in_ch,
+                out_ch,
+                kernel_size=(int(k_c), int(k_t)),
+                stride=stride,
+                padding=(0, int(k_t) // 2),
+                padding_mode="zeros",
+            )
 
             layers += [conv, nn.BatchNorm2d(out_ch), nn.ReLU(inplace=True)]
 
@@ -84,7 +102,6 @@ class SpeechNet(nn.Module):
 
             self.blocks.append(nn.Sequential(*layers))
             in_ch = out_ch
-
 
         # Dynamic pooling over remaining (channel-height, time-width) -> (1,1)
         if global_pool == "avg":
@@ -104,8 +121,8 @@ class SpeechNet(nn.Module):
         for block in self.blocks:
             x = block(x)
 
-        x = self.global_pool(x)      # (B, channels_last, 1, 1)
-        x = torch.flatten(x, 1)      # (B, channels_last)
+        x = self.global_pool(x)  # (B, channels_last, 1, 1)
+        x = torch.flatten(x, 1)  # (B, channels_last)
         x = self.dropout(x)
-        x = self.fc(x)               # (B, output_classes)
+        x = self.fc(x)  # (B, output_classes)
         return x

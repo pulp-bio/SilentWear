@@ -2,7 +2,7 @@
 # IMPORTANT: model_name_id must be aligned across experiments for the same window size.
 # Recommended convention: model_name_id = "w<WINDOW_MS>ms"  (e.g., w800ms, w1400ms)
 
-model_name_id: "w1400ms"   # placeholder; overwrite from script when running window ablations
+model_name_id: "w1400ms" # placeholder; overwrite from script when running window ablations
 
 # If True, retrain inter-session base models even if already present.
 retrain_intersessions: true

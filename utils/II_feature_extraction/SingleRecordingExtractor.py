@@ -1,3 +1,12 @@
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 Main Script to Generate EMG-windows from data and (optionally) extract features
 =========================================================================
@@ -37,32 +46,32 @@ The HDF5 file must contain:
     - session_id
 """
 
-
 import pandas as pd
 from pathlib import Path
 import sys
-import matplotlib.pyplot as plt
-import numpy as np
 
-from typing import Any, Dict, List, Optional, Set
-PROJECT_ROOT = Path(__file__).resolve().parents[1]   
+from typing import Dict, Optional, Set
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 print(PROJECT_ROOT)
 sys.path.insert(0, str(PROJECT_ROOT))
-PROJECT_ROOT = Path(__file__).resolve().parents[2]     
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from utils.I_data_preparation.experimental_config import *
 from utils.II_feature_extraction.FeatExtractorManager import FeatureExtractor
 from utils.I_data_preparation.read_bio_file import print_label_statistics
 
+
 class Single_Recording_Windower_and_Feature_Extractor:
-    def __init__(self, 
-                data_directory : Path, 
-                h5_file_path : Path, 
-                window_size_s : float, 
-                manual_feature_extraction : bool, 
-                num_subwindows : Optional[int] = None, 
-                ) -> None:
+    def __init__(
+        self,
+        data_directory: Path,
+        h5_file_path: Path,
+        window_size_s: float,
+        manual_feature_extraction: bool,
+        num_subwindows: Optional[int] = None,
+    ) -> None:
         pass
         """
         Data Windower and Feature Extractor, operating on a single recording
@@ -79,9 +88,8 @@ class Single_Recording_Windower_and_Feature_Extractor:
             self.num_subwin = num_subwindows
         else:
             self.num_subwin = None
-        
+
         self.feature_extractor = FeatureExtractor(fs=FS)
-    
 
     def find_word_segments_manual_index(
         self,
@@ -89,7 +97,7 @@ class Single_Recording_Windower_and_Feature_Extractor:
         valid_vals: Optional[Set[int]] = None,
         label_col: str = "Label_int",
         label_to_word_map: Optional[dict] = None,
-        ) -> pd.DataFrame:
+    ) -> pd.DataFrame:
         """
         Manual run segmentation that returns start/end in df.index LABEL space,
         matching find_word_segments_df:
@@ -103,7 +111,9 @@ class Single_Recording_Windower_and_Feature_Extractor:
 
         n = len(labels)
         if n == 0:
-            return pd.DataFrame(columns=["start_idx", "end_idx", "label_int", "label_str", "run_len"])
+            return pd.DataFrame(
+                columns=["start_idx", "end_idx", "label_int", "label_str", "run_len"]
+            )
 
         segments = []
         start_pos = 0
@@ -114,26 +124,30 @@ class Single_Recording_Windower_and_Feature_Extractor:
                 # run is [start_pos, i) in positional space
                 if (valid_vals is None) or (curr in valid_vals):
                     start_label = int(idx[start_pos])
-                    last_label  = int(idx[i - 1])
-                    segments.append({
-                        "start_idx": start_label,
-                        "end_idx": last_label + 1,     # exclusive in label space (matches pandas)
-                        "label_int": int(curr),
-                        "run_len": int(i - start_pos),
-                    })
+                    last_label = int(idx[i - 1])
+                    segments.append(
+                        {
+                            "start_idx": start_label,
+                            "end_idx": last_label + 1,  # exclusive in label space (matches pandas)
+                            "label_int": int(curr),
+                            "run_len": int(i - start_pos),
+                        }
+                    )
                 start_pos = i
                 curr = labels[i]
 
         # last run: [start_pos, n)
         if (valid_vals is None) or (curr in valid_vals):
             start_label = int(idx[start_pos])
-            last_label  = int(idx[n - 1])
-            segments.append({
-                "start_idx": start_label,
-                "end_idx": last_label + 1,         # exclusive in label space
-                "label_int": int(curr),
-                "run_len": int(n - start_pos),
-            })
+            last_label = int(idx[n - 1])
+            segments.append(
+                {
+                    "start_idx": start_label,
+                    "end_idx": last_label + 1,  # exclusive in label space
+                    "label_int": int(curr),
+                    "run_len": int(n - start_pos),
+                }
+            )
 
         seg_df = pd.DataFrame(segments)
 
@@ -151,11 +165,7 @@ class Single_Recording_Windower_and_Feature_Extractor:
 
         return seg_df.reset_index(drop=True)
 
-    
-    def find_word_segments_df(self, 
-            df: pd.DataFrame, 
-            valid_vals: set[int], 
-            label_col="Label_str"):
+    def find_word_segments_df(self, df: pd.DataFrame, valid_vals: set[int], label_col="Label_str"):
         s = df[label_col]
         run_id = (s != s.shift(1)).cumsum()
 
@@ -164,19 +174,20 @@ class Single_Recording_Windower_and_Feature_Extractor:
             .groupby("_run", sort=False)
             .agg(
                 start_idx=(label_col, lambda x: int(x.index[0])),
-                end_idx  =(label_col, lambda x: int(x.index[-1]) + 1),
+                end_idx=(label_col, lambda x: int(x.index[-1]) + 1),
                 label_int=(label_col, "first"),
-                label_str=("Label_str", "first") if "Label_str" in df.columns else (label_col, "first"),
-                run_len  =(label_col, "size"),
+                label_str=(
+                    ("Label_str", "first") if "Label_str" in df.columns else (label_col, "first")
+                ),
+                run_len=(label_col, "size"),
             )
             .reset_index(drop=True)
         )
-        #self.plot_lables(s)
+        # self.plot_lables(s)
         # Print number of segments per label
         seg_valid = seg[seg["label_int"].isin(valid_vals)].reset_index(drop=True)
         # print("\nSegment count per label_int:")
         # print(seg_valid["label_int"].value_counts())
-
 
         # DEBUG
         # seg["span"] = seg["end_idx"] - seg["start_idx"]
@@ -186,15 +197,15 @@ class Single_Recording_Windower_and_Feature_Extractor:
         # print("df.index example:", df.index[:10].to_list())
 
         return seg_valid
-    
+
     def extract_channel_features(
-        self, 
+        self,
         df_filtered: pd.DataFrame,
         start_idx: int,
         channel_tag: str,
         sample_per_big_window: int,
         sample_per_small_window: int,
-        )    -> Dict[str, float]:
+    ) -> Dict[str, float]:
         """Extract features for a SINGLE channel across all small windows.
 
         Args:
@@ -229,13 +240,13 @@ class Single_Recording_Windower_and_Feature_Extractor:
         return feature_row
 
     def extract_features_per_word(
-        self, 
+        self,
         df_filtered: pd.DataFrame,
-        df_channels : pd.Index, 
+        df_channels: pd.Index,
         start_idx: int,
         sample_per_big_window: int,
-        sample_per_small_window: int, 
-        ) -> dict:
+        sample_per_small_window: int,
+    ) -> dict:
         """Extract features for a single word across all channels.
 
         Args:
@@ -266,22 +277,21 @@ class Single_Recording_Windower_and_Feature_Extractor:
         sample_per_big_window = int(self.window_size_s * FS)
         if self.num_subwin is not None:
             sample_per_small_window = sample_per_big_window // self.num_subwin
-        
 
         mask_ch = df.columns.str.contains("^Ch_")
         ch_cols = df.columns[mask_ch]
         mask_filt = ch_cols.str.contains("_filt")
         filt_cols = ch_cols[mask_filt]
 
-
         feature_data = []
         for _, seg in seg_df.iterrows():
-            
+
             start_idx = int(seg["start_idx"])
-            end_seg   = int(seg["end_idx"])      # end of the run (exclusive)
+            end_seg = int(seg["end_idx"])  # end of the run (exclusive)
 
-
-            end_idx = start_idx + sample_per_big_window -1 #since we work with pandas, loc includes last
+            end_idx = (
+                start_idx + sample_per_big_window - 1
+            )  # since we work with pandas, loc includes last
             if end_idx >= df.index[-1]:
                 continue
 
@@ -290,22 +300,22 @@ class Single_Recording_Windower_and_Feature_Extractor:
             if self.manual_feature_extraction:
                 feature_row = self.extract_features_per_word(
                     df,
-                    filt_cols, 
+                    filt_cols,
                     start_idx,
                     sample_per_big_window,
                     sample_per_small_window,
                 )
 
             # ---- Add metadata ----
-            feature_row['Label_int'] = seg['label_int']
-            feature_row['Label_str'] = seg['label_str']
+            feature_row["Label_int"] = seg["label_int"]
+            feature_row["Label_str"] = seg["label_str"]
 
-            feature_row['batch_id'] = df['batch_id'].unique()[0]
-            feature_row['session_id'] = df['session_id'].unique()[0]
+            feature_row["batch_id"] = df["batch_id"].unique()[0]
+            feature_row["session_id"] = df["session_id"].unique()[0]
 
             # ---- Add start/stop indices for this big window ----
             feature_row["start_idx"] = start_idx
-            feature_row["end_idx"] = end_idx 
+            feature_row["end_idx"] = end_idx
 
             # ========= Extract Entire Windows ====================
 
@@ -315,21 +325,19 @@ class Single_Recording_Windower_and_Feature_Extractor:
             feature_data.append(feature_row)
         return pd.DataFrame(feature_data)
 
-
-
-    def process_single_recording(self, valid_labels = label_to_word_map.keys()):
+    def process_single_recording(self, valid_labels=label_to_word_map.keys()):
         # Read current file
-        df = pd.read_hdf(self.h5_file, key='emg')
+        df = pd.read_hdf(self.h5_file, key="emg")
         print_label_statistics(df)
         # Find segments corresponding to each Word (or rest)
-        seg_df = self.find_word_segments_df(df, valid_vals=valid_labels, label_col='Label_int')                
+        seg_df = self.find_word_segments_df(df, valid_vals=valid_labels, label_col="Label_int")
         df_wins_feats = self.extract_windows_and_features_from_df(df, seg_df)
         print(df_wins_feats)
         return df_wins_feats
 
 
-if __name__ == '__main__':
-    # adjust here with the path. 
+if __name__ == "__main__":
+    # adjust here with the path.
     # Convention strucutre: \data\raw\<subject_id>\<condition>
     main_data_dire = Path(r"\data\raw\<subject_id>\<condition>")
 
@@ -339,5 +347,6 @@ if __name__ == '__main__':
     for curr_h5 in all_bios_in_folder:
         print(curr_h5)
         # intialize a new class
-        feat_extract = Single_Recording_Windower_and_Feature_Extractor(main_data_dire, curr_h5, window_size_s=1.4, manual_feature_extraction=False)
-
+        feat_extract = Single_Recording_Windower_and_Feature_Extractor(
+            main_data_dire, curr_h5, window_size_s=1.4, manual_feature_extraction=False
+        )

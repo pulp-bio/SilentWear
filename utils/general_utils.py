@@ -1,14 +1,24 @@
+# Copyright 2026 Giusy Spacone
+# Copyright 2026 ETH Zurich
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+
 """
 This file contains General Classes and Functions shared across the project
 """
-
 
 import yaml
 from pathlib import Path
 import pandas as pd
 import json
 from typing import Any, Iterable
+
 ######################################### SUBJECT CONFIGURATION CLASS #################################################
+
 
 class SubjectConfig:
     def __init__(self, yaml_file=Path("config.yaml")):
@@ -34,6 +44,7 @@ class SubjectConfig:
 
 
 ######################################### LOADING UTILS #################################################
+
 
 ### TO-DO: remove these functions, fix scripts using them using open_file (added later)
 def load_yaml_config(config_path=Path("config.yaml")):
@@ -67,14 +78,17 @@ def open_file(file_path: Path) -> Any:
     elif suffix == ".csv":
         return pd.read_csv(file_path)
 
-    elif suffix == '.yaml':
+    elif suffix == ".yaml":
         with open(file_path, "r") as f:
             return yaml.safe_load(f)
 
     else:
         raise ValueError(f"Unsupported file type: {suffix}")
 
-def load_all_h5files_from_folder(data_directory: Path, key: str = None, print_statistics: bool = False) -> pd.DataFrame:
+
+def load_all_h5files_from_folder(
+    data_directory: Path, key: str = None, print_statistics: bool = False
+) -> pd.DataFrame:
     """
     Load and concatenate all `.h5` files found recursively inside a folder.
 
@@ -86,7 +100,7 @@ def load_all_h5files_from_folder(data_directory: Path, key: str = None, print_st
     key : str, optional
         Dataset key inside the HDF5 files (required if files contain multiple datasets).
         If None, files will be skipped.
-    
+
     print_statistics: bool, optional
         True if we want to print statistics (number of sessions, batches, label distributions from loaded data)
 
@@ -107,7 +121,6 @@ def load_all_h5files_from_folder(data_directory: Path, key: str = None, print_st
         return pd.DataFrame()
 
     print(f"Found {len(h5_files)} .h5 files in: {data_directory}")
-    
 
     # 2. Load and concatenate all DataFrames
     df_list = []
@@ -122,10 +135,10 @@ def load_all_h5files_from_folder(data_directory: Path, key: str = None, print_st
             df = pd.read_hdf(file_path, key=key)
             # Extract subject_id and condition from path. Example: .../S01/silent/WIN_1400/file.h5
             # ----------------------------------------------------
-            subject_id = file_path.parts[-4]   # S01
-            condition  = file_path.parts[-3]   # silent or vocalized
-            df['subject_id'] = subject_id
-            df['condition'] = condition
+            subject_id = file_path.parts[-4]  # S01
+            condition = file_path.parts[-3]  # silent or vocalized
+            df["subject_id"] = subject_id
+            df["condition"] = condition
             df_list.append(df)
         except Exception as e:
             print(f"Error loading {file_path.name}: {e}")
@@ -138,11 +151,12 @@ def load_all_h5files_from_folder(data_directory: Path, key: str = None, print_st
     if print_statistics:
         print_dataset_summary_statistics(df_all)
 
-
     return df_all
 
 
-def load_subjects_data(data_directories: Iterable[Path], print_statistics: bool = False) -> pd.DataFrame:
+def load_subjects_data(
+    data_directories: Iterable[Path], print_statistics: bool = False
+) -> pd.DataFrame:
     """
     Load and concatenate data from a list of data directories.
 
@@ -151,31 +165,35 @@ def load_subjects_data(data_directories: Iterable[Path], print_statistics: bool 
     """
     df = pd.DataFrame()
     for curr_data_dire in data_directories:
-        df_curr = load_all_h5files_from_folder(curr_data_dire, key="wins_feats", print_statistics=print_statistics)
+        df_curr = load_all_h5files_from_folder(
+            curr_data_dire, key="wins_feats", print_statistics=print_statistics
+        )
         if df_curr is not None and not df_curr.empty:
             df = pd.concat((df, df_curr))
     return df
 
+
 ######################################### Datasets UTILS #################################################
+
 
 def print_dataset_summary_statistics(df):
     print("\n Loaded DataFrame Summary")
     print(f"Total rows: {len(df)}")
     print(f"Total columns: {len(df.columns)}")
-    unique_subjects = df['subject_id'].unique()
+    unique_subjects = df["subject_id"].unique()
     print(f"Subjects in Dataset: {unique_subjects}")
-    unique_conditions = df['condition'].unique()
+    unique_conditions = df["condition"].unique()
     print(f"Conditions in dataset:{unique_conditions}")
 
     # Sessions overview
     unique_sessions = df["session_id"].unique()
     print(f"\nContains data from {len(unique_sessions)} sessions:")
-    
+
     for subject_id in unique_subjects:
         print("\n----------------------------------------")
-        
+
         df_subj = df[df["subject_id"] == subject_id]
-        print("SUBJECT:", df_subj['subject_id'].unique())
+        print("SUBJECT:", df_subj["subject_id"].unique())
         for session_id in unique_sessions:
             df_sess = df_subj[df_subj["session_id"] == session_id]
             for condition in unique_conditions:
@@ -185,7 +203,3 @@ def print_dataset_summary_statistics(df):
                 print(f"Session: {session_id} - condition: {condition}")
                 print(f"  Unique batches: {len(batches)}")
                 print(f"  Labels distribution:\n{labels}")
-
-
-
-
