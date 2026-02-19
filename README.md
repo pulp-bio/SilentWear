@@ -329,8 +329,8 @@ _Silent-Wear_ has been developed at _ETH Zürich_, by the _PULP-Bio_ [Biomedical
 - Fiona Meier (Hardware Development)
 - Giovanni Pollo [Scholar](https://scholar.google.com/citations?hl=it&user=znSV3doAAAAJ&view_op=list_works&sortby=pubdate) (Experimental Desing, Data Collection, Documentation)
 
-- Luca Benini [Scholar](https://scholar.google.com/citations?user=8riq3sYAAAAJ&hl=en)(Supervision, Conceptualization)
-- Andrea Cossettini [Scholar](https://scholar.google.com/citations?user=d8O91jIAAAAJ&hl=en)(Supervision, Project administration)
+- Prof. Luca Benini [Scholar](https://scholar.google.com/citations?user=8riq3sYAAAAJ&hl=en)(Supervision, Conceptualization)
+- Dr. Andrea Cossettini [Scholar](https://scholar.google.com/citations?user=d8O91jIAAAAJ&hl=en)(Supervision, Project administration)
 
 ## 📄 License
 
