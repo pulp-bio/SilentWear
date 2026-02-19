@@ -202,6 +202,8 @@ If you ran the inter session models multiple times, chage the inter_session_mode
 
 ---
 
+Note: Small performance variations may occur due to randomness but remain within the reported standard deviation.
+
 ##  Run minimal experiments.
 
 The ```script``` folder is built around the standalone scripts contained in:
