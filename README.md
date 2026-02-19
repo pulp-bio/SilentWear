@@ -320,6 +320,14 @@ If you use this work, we strongly encourage you to cite:
   doi={10.1109/TBCAS.2026.3652501}}
 ```
 
+## 👨‍💻 Contributors
+
+_Silent-Wear_ has been developed at _ETH Zürich_, by the _PULP-Bio_[https://iis-projects.ee.ethz.ch/index.php?title=Biomedical_Circuits,_Systems,_and_Applications] group led by Prof. Luca Benini and developed by Giusy Spacone.. other people and links to the group, the work  etc..
+
 ## 📄 License
 
-This project is licensed under the Apache License 2.0 — see the [LICENSE](LICENSE) file for details.
+This project makes use of the following licenses:
+
+- Apache License 2.0 — see the [LICENSE](LICENSE) file for details.
+
+- Images are under the the Creative Commons Attribution 4.0 International License - see the [LICENSE_IMG](LICENSE.images) file for details.
