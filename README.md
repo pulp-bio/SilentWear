@@ -106,7 +106,7 @@ In our work, we conduct four experiments experiments:
 #### 1. Global Evaluation Setting
 
 <p align="left">
-  <img src="extras/global.gif" width="200">
+  <img src="extras/global.gif" width="500">
 </p>
 
 
@@ -123,7 +123,7 @@ python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_
 
 #### Inter-Session Evaluation Setting
 <p align="left">
-  <img src="extras/inter_session.gif" width="200">
+  <img src="extras/inter_session.gif" width="500">
 </p>
 
 Train **Random Forest** models: 
@@ -144,7 +144,7 @@ You can pass a single float value to ```inter_session_windows_s``` if you want t
 #### Training From Scratch
 
 <p align="left">
-  <img src="extras/from_scratch.gif" width="200">
+  <img src="extras/from_scratch.gif" width="500">
 </p>
 
 
@@ -157,7 +157,7 @@ Adjust ```tfs_windows_s``` to select a different window size.
 #### Inter-Session Fine Tuning
 
 <p align="left">
-  <img src="extras/incremental_ft.gif" width="200">
+  <img src="extras/incremental_ft.gif" width="500">
 </p>
 
 ```bash
