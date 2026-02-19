@@ -200,7 +200,7 @@ Note:
 If you runned multiple fine tuning or baseline rounds for the same window size, adjust ft_id and bs_id accordingly.
 If you ran the inter session models multiple times, chage the inter_session_model_id
 
-
+---
 
 ##  Run minimal experiments.
 
@@ -225,7 +225,7 @@ utils/I_data_preparation/data_preparation.py
 
 Then run windowing/feature extraction as above.
 
-
+---
 
 ## 🤝 Contributing
 
@@ -260,7 +260,7 @@ To integrate a new model:
 3. Add your model factory to `models/models_factory.py` file
 3. Submit a pull request with a short description of your approach and results
 
----
+
 
 ### 🛠 3. Improve the Pipeline
 
