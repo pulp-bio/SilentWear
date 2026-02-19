@@ -61,7 +61,7 @@ cd SilentWear
 pip install -r requirements.txt
 ```
 
-## 🗃️ Donwload the Data
+## 🗃️ Download the Data
 
 You can download the data used in this work from: https://huggingface.co/datasets/PulpBio/SilentWear
 
@@ -74,7 +74,7 @@ SilentWear/
 ```
 
 Further description on the content of the dataset are available at: https://huggingface.co/datasets/PulpBio/SilentWear/blob/main/README.md
-Before running the experiments, updayes the data paths in:
+Before running the experiments, updates the data paths in:
 
 ```bash
 config/paper_models_config.yaml
@@ -106,7 +106,7 @@ This script:
 
 ### 2️⃣: Run Experiments
 
-In our work, we conduct four experiments experiments:
+In our work, we conduct four experiments:
 
 #### 1. Global Evaluation Setting
 
@@ -155,7 +155,7 @@ You can pass a single float value to `inter_session_windows_s` if you want to tr
 </p>
 
 ```bash
-python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir ./data--artifacts_dir artifacts --experiment train_from_scratch --tfs_config config/paper_train_from_scratch_config.yaml --tfs_windows_s 1.4
+python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir ./data --artifacts_dir artifacts --experiment train_from_scratch --tfs_config config/paper_train_from_scratch_config.yaml --tfs_windows_s 1.4
 ```
 
 Adjust `tfs_windows_s` to select a different window size.
@@ -206,8 +206,8 @@ python utils/III_results_analysis/III_ft_results.py --artifacts_dir ./artifacts 
 
 Note:
 
-If you runned multiple fine tuning or baseline rounds for the same window size, adjust ft_id and bs_id accordingly.
-If you ran the inter session models multiple times, chage the inter_session_model_id
+If you ran multiple fine tuning or baseline rounds for the same window size, adjust ft_id and bs_id accordingly.
+If you ran the inter session models multiple times, change the inter_session_model_id
 
 ---
 
@@ -221,7 +221,7 @@ The `script` folder is built around the standalone scripts contained in:
 
 - `offline_experiments`
 
-The script in these folder can be runned independently
+The scripts in these folder can be ran independently.
 
 They can be used as a starting point to **test your own model**.
 
