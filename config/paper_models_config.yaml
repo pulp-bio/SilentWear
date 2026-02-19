@@ -1,5 +1,5 @@
 data:
-  data_directory: /scratch2/gspacone/DATA_DIR_SILENT
+  data_directory: ./SilentWearData
   models_main_directory: ./artifacts
   subject_id: S01
 paths:

@@ -1,6 +1,6 @@
 data:
-  data_directory: /scratch2/gspacone/DATA_DIR_SILENT
-  subject_id: S04
+  data_directory: ./SilentWearData
+  subject_id: S01
 paths:
   processed: data_raw_and_filt
   win_and_feats: wins_and_features
@@ -8,7 +8,7 @@ conditions:
   silent: silent
   vocalized: vocalized
 window:
-  window_size_s: 1.6
+  window_size_s: 1.4
 feature_extraction:
   manual_feature_extraction: false
   num_subwindows: 7

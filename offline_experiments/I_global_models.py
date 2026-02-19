@@ -192,9 +192,7 @@ class Global_Model_Trainer:
             if self.include_rest:
                 min_samples = train_val_data["Label_int"].value_counts().min()
                 idx_rest = train_val_data[train_val_data["Label_str"] == "rest"].index.values
-                index_rest_ds = train_val_data[train_val_data["Label_str"] == "rest"].sample(
-                    n=min_samples, random_state=seed
-                ).index.values
+                index_rest_ds = train_val_data[train_val_data["Label_str"] == "rest"].sample(n=min_samples, random_state=seed).index.values
                 idx_to_drop = np.setdiff1d(idx_rest, index_rest_ds)
                 train_val_data = train_val_data.drop(index=idx_to_drop)
 
