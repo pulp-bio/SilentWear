@@ -13,15 +13,9 @@ Typical usage (standalone, full sweep):
   python scripts/20_make_windows_and_features.py --data_dir ./data
 
 Custom subset:
-  python scripts/20_make_windows_and_features.py \
-    --data_dir ./data \
-    --subjects S01 S02 \
-    --conditions silent \
-    --windows_s 0.8 1.2 \
-    --manual_features false
+  python scripts/20_make_windows_and_features.py --data_dir ./data --subjects S01 S02 --conditions silent --windows_s 0.8 1.2 --manual_features false
 
 Notes:
-- The windows of 1.4 s are already contained in the Hugging Face Dataset
 - This script writes a temporary YAML per run so tracked configs are not modified.
 - It expects your dataset layout such that the extractor can find raw data under data_dir.
 """

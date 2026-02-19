@@ -1,7 +1,5 @@
 """
-Docstring for utils.data_preparation.experimental_config
-
-This file includes constants used during the data collection
+This file includes constants used during the data collection. 
 """
 
 FS = 500

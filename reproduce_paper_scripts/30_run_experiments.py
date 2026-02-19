@@ -1,43 +1,53 @@
 #!/usr/bin/env python3
 """
-Run paper experiments and save run folders into artifacts/.
+Experiment Orchestrator for Paper Reproducibility
+==================================================
 
-Supported experiments:
-  - global
-  - inter_session
-  - inter_session_ft
-  - train_from_scratch
+This script runs the experiments reported in the Silent-Wear paper and
+stores all outputs under the specified artifacts directory.
 
-Key behavior for paper reproducibility:
-  - Automatically sets deterministic `model_name_id` based on window size:
-        model_name_id = f"w{window_ms}ms"
-    applied consistently to global / inter_session / inter_session_ft / train_from_scratch.
+Supported experiment types
+--------------------------
+- global
+- inter_session
+- inter_session_ft
+- train_from_scratch
 
-Inter-session ablations:
-  - User provides only range endpoints: e.g. --inter_session_windows_s 0.4 1.4
-  - Script expands to 0.4, 0.6, 0.8, 1.0, 1.2, 1.4 (step configurable, default=0.2)
+Reproducibility Guarantees
+--------------------------
+For deterministic experiment grouping and consistent result aggregation,
+the script automatically assigns:
 
-Usage examples:
+    model_name_id = f"w{window_ms}ms"
 
-GLOBAL only (fixed window from base_config):
-  python scripts/30_run_experiments.py --base_config config/paper_models_config.yaml \
-    --model_config config/models_configs/speechnet.yaml \
-    --data_dir ./data --artifacts_dir ./artifacts --experiment global
+This identifier is injected consistently across:
+- global
+- inter_session
+- inter_session_ft
+- train_from_scratch
 
-INTER-SESSION ablations (auto):
-  python scripts/30_run_experiments.py --base_config config/paper_models_config.yaml \
-    --model_config config/models_configs/speechnet.yaml \
-    --data_dir ./data --artifacts_dir ./artifacts --experiment inter_session \
-    --inter_session_windows_s 0.4 1.4
+This ensures reproducible folder structure and stable experiment tracking.
 
-FT + TFS (defaults windows [0.8, 1.4]):
-  python scripts/30_run_experiments.py --base_config config/paper_models_config.yaml \
-    --model_config config/models_configs/speechnet.yaml \
-    --data_dir ./data --artifacts_dir ./artifacts \
-    --experiment inter_session_ft train_from_scratch \
-    --ft_config config/paper_ft_config.yaml \
-    --tfs_config config/paper_train_from_scratch_config.yaml
+Inter-Session Window Ablations
+------------------------------
+The argument `--inter_session_windows_s` supports three modes:
+
+1) Two values → interpreted as range endpoints  
+   Example:
+       --inter_session_windows_s 0.4 1.4
+
+   Expands to:
+       0.4, 0.6, 0.8, 1.0, 1.2, 1.4
+   (step controlled by --window_step_s, default=0.2)
+
+2) More than two values → treated as explicit list
+
+3) No values → default paper sweep:
+       0.4 .. 1.4 (step=0.2)
+
+For Usage Example, please refer to the README.md
 """
+
 
 from __future__ import annotations
 

@@ -1,3 +1,43 @@
+"""
+Main Script to Generate EMG-windows from data and (optionally) extract features
+=========================================================================
+
+This module provides utilities for performing exploratory data analysis (EDA)
+on extracted EMG features from a single recording.
+
+It implements a pipeline that:
+
+1. Loads a preprocessed EMG recording stored as HDF5.
+2. Identifies contiguous word segments based on label transitions.
+3. Extracts fixed-length windows from each word segment.
+4. Optionally performs manual feature extraction using FeatureExtractor.
+5. Returns a DataFrame containing:
+    - Raw window data (filtered channels)
+    - Extracted features (if enabled)
+    - Metadata (label, session, batch, start/end indices)
+
+Main Class
+----------
+Single_Recording_Windower_and_Feature_Extractor
+
+This class operates on a single HDF5 recording and supports:
+
+- Manual segmentation using index-based label transitions
+- Pandas-based segmentation using group-by logic
+- Multi-channel window extraction
+- Sub-window feature extraction within each main window (see https://www.arxiv.org/pdf/2509.21964 for details)
+
+Expected Input Format
+---------------------
+The HDF5 file must contain:
+    - Filtered EMG channels (e.g., Ch_0_filt, Ch_1_filt, ...)
+    - Label_int (integer labels)
+    - Label_str (string labels)
+    - batch_id
+    - session_id
+"""
+
+
 import pandas as pd
 from pathlib import Path
 import sys

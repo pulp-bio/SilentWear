@@ -282,7 +282,7 @@ If you use this work, we strongly encourage you to cite:
   author = {Spacone, Giusy and Frey, Sebastian and Pollo, Giovanni and Burrello, Alessio and Pagliari, J. Daniele and Kartsch, Victor and Cossettini, Andrea and Benini, Luca},
   title = {SilentWear: An Ultra-Low Power Wearable System for EMG-Based Silent Speech Recognition},
   year = {2026},
-  url = {https://arxiv.org/placeholder}
+  url = {coming soon}
 }
 ```
 ```bibtex

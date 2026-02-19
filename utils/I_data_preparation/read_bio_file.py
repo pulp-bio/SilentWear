@@ -1,14 +1,36 @@
+"""
+BIOGUI Recording Loader and Preprocessing Utilities
+===================================================
+
+This module provides utilities to:
+1) Read `.bio` recordings produced by BIOGUI / BioGAP.
+2) Parse session/batch metadata from filenames.
+3) Convert raw recordings into a labeled EMG pandas DataFrame.
+4) Apply preprocessing (HP + notch filtering) and save processed outputs.
+
+Expected directory convention (raw):
+    <data_dir_raw>/<subject>/<condition>/*.bio
+where condition is typically: {silent, vocalized}
+
+Processed outputs:
+    - Per-recording HDF5 files (key="emg")
+    - A per-subject CSV index (summary_file.csv)
+
+Notes
+-----
+- The `.bio` format is parsed according to the file header and per-signal metadata.
+- Trigger labels are mapped using `ORIGINAL_LABELS` from `experimental_config`.
+"""
+
 import struct
 import numpy as np
 from pathlib import Path
 import sys
 import pandas as pd
-from pathlib import Path
 import re 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]   
 sys.path.insert(0, str(PROJECT_ROOT))
-PROJECT_ROOT = Path(__file__).resolve().parents[2]     
 from I_data_preparation.emg_processing import *
 from I_data_preparation.experimental_config import * 
 from I_data_preparation.visualizations import * 
@@ -342,8 +364,8 @@ def data_losses_check(counter):
     counter = counter - counter[0]
     print(f"Lost:{losses} samples")
     # Note: first value of the counter might not be 0. This is how the FW is designed
-    if losses!=0:
-        print(f"[COUNTER_CHECK], Lost: {losses} samples")
+    if losses_cnts!=0:
+        print(f"[COUNTER_CHECK], Lost: {losses_cnts} samples")
         count_diffs = np.diff(counter_reconstructed)
         
         if np.sum(count_diffs!=1)!=losses:
@@ -448,8 +470,7 @@ if __name__=='__main__':
             parsed = parse_bio_filename(curr_bio)
         if parsed is None:
             print(f"[SKIP] Could not parse session/batch/timestamp from filename: {curr_bio.name}")
-            n_fail += 1
-            continue
+            sys.exit()
 
         session_id, batch_id, ts = parsed
         emg_df=read_single_recording(curr_bio, session_id, batch_id, 20, 50, plot=False)

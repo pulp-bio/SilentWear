@@ -1,4 +1,4 @@
-"""Train-from-scratch sweep (subject-specific).
+"""Train-from-scratch Evaluation Setting
 
 This experiment performs a progressive fine-tuning (FT) procedure **without any pre-training**:
 - The first batch starts from **random initialization** (model_to_ft_path=None).

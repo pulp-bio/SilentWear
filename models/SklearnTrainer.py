@@ -1,8 +1,7 @@
 """
-Define Different Trainers to train Classical ML Models (based on Sklearn Library) or DL Models (using Pytorch)
+Main Trainer for Classical ML-Model (scikit-learn)
 """
 
-import numpy as np
 from models.utils import compute_metrics
 from typing import Optional
 import joblib 

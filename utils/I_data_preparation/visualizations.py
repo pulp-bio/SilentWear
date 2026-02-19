@@ -1,15 +1,13 @@
+"""
+General Visualization Utils
+"""
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from matplotlib.lines import Line2D
-import re 
-import pandas as pd
-
-
-import numpy as np
-import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
-
+import re 
 
 def plot_emg_color_by_label(
     emg_df,
@@ -223,7 +221,8 @@ def plot_label_waveform(emg_df, use_label_str=True):
 if __name__ == '__main__':
 
     # Adjust here the path
-    h5_file = r"\data\processed\S01\vocalized\sess_1_batch_1.h5"
+    # Adjust here with your path
+    h5_file = r"\..\data_raw_and_filt\S01\vocalized\sess_1_batch_1.h5"
     df = pd.read_hdf(h5_file)
 
     plot_emg_color_by_label(df, fs=500, use_filtered=True)

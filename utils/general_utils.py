@@ -1,7 +1,5 @@
 """
-Docstring for utils.general_utils
-
-This file contains Classes and Function shared across the project
+This file contains General Classes and Functions shared across the project
 """
 
 

@@ -1,15 +1,16 @@
 """
-Global models (subject-specific).
+Global Experiment Evaluation Setting
 
 Behavior:
 - Load all windows/features for the given subject + condition.
-- Run CV as configured in base_config['cv'] (paper uses leave_one_batch_out).
+- Run CV as configured in base_config['cv'] (by defualt, leave_one_batch_out).
 - Save outputs under:
     <ARTIFACTS_DIR>/models/global/<subject>/<condition>/<model_name>/<MODEL_NAME_ID>/model_<k>/
 
 Compatibility goals:
 1) Importable by `scripts/30_run_experiments.py` (runs ONE subject/condition per call).
 2) Runnable as a standalone script (loops subjects/conditions by default).
+
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from offline_experiments.Model_Master import Model_Master
 from models.seeds import TORCH_MANUAL_SEED, RANDOM_SEED, RGN_SEED
 from utils.general_utils import load_all_h5files_from_folder, print_dataset_summary_statistics
-from offline_experiments.general_utils import *  # keeps legacy helpers used elsewhere
+from offline_experiments.general_utils import *  
 
 
 class Global_Model_Trainer:

@@ -1,16 +1,35 @@
+"""
+Global Windowing and Feature Extraction Pipeline
+================================================
+
+This module generates fixed-length EMG windows (and optionally extracted
+features) for all processed recordings of a given subject.
+
+It operates on preprocessed HDF5 recordings stored (typically) under:
+
+    <data_directory>/data_raw_and_filt/<subject_id>/(silent|vocalized)/*.h5
+
+For each recording, the pipeline:
+
+1. Loads the processed EMG DataFrame.
+2. Identifies valid labeled segments (words / commands).
+3. Extracts fixed-length windows starting at each segment.
+4. Optionally performs manual feature extraction per window.
+5. Saves the resulting windows and features to:
+
+    <data_directory>/wins_and_features/<subject_id>/<condition>/WIN_<window_ms>/
+"""
+
+
+
 import numpy as np
 import pandas as pd
 from pathlib import Path
 import sys
-
-
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]   
 sys.path.insert(0, str(PROJECT_ROOT))
 PROJECT_ROOT = Path(__file__).resolve().parents[2]     
 sys.path.insert(0, str(PROJECT_ROOT))
-
-
 from utils.I_data_preparation.experimental_config import label_to_word_map, FS
 from utils.II_feature_extraction.SingleRecordingExtractor import Single_Recording_Windower_and_Feature_Extractor
 from utils.general_utils import *

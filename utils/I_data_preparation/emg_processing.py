@@ -1,3 +1,7 @@
+"""
+This file contains functions to pre-process raw EMG recordings
+"""
+
 from scipy.signal import butter, filtfilt
 
 def butter_highpass(cutoff, fs, order=4):

@@ -1,5 +1,5 @@
 """
-Inter-session + Fine-Tuning (subject-specific).
+Inter-session + Fine-Tuning Evaluation Setting.
 
 This experiment fine-tunes inter-session base models progressively over batches of the
 held-out test session (as defined by the inter-session CV fold):

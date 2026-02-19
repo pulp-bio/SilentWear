@@ -1,6 +1,4 @@
 """
-Docstring for utils.data_preparation.data_preparation
-
 This file is used to convert data from a .bio format into h5. 
 It is also used to visualize data after the acquisiton
 """

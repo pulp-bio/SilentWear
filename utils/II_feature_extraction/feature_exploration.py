@@ -1,6 +1,4 @@
 """
-Docstring for extras.1_feature_exploration
-
 This script contains utils function to perfrom Exploratory Data Analysis on the Extracted Features
 """
 

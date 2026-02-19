@@ -1,3 +1,7 @@
+"""
+Script Responsible to Extract UMAP Projection
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
