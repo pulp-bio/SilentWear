@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 
-# # SPDX-FileCopyrightText: 2026 ETH Zurich
-# # SPDX-License-Identifier: Apache-2.0
+
+# Copyright ETH Zurich 2026
+# Licensed under Apache v2.0 see LICENSE for details.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
 
 """
 itr_window_sweep_analysis.py
