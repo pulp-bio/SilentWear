@@ -4,7 +4,6 @@ _Silent-Wear_ is an end-to-end, fully open-source wearable system for _vocalized
 
 <table align="center">
 <tr>
-<td align="center">
 <img src="extras/abstract_fig_git.png" height="350"><br>
 </td>
 <td align="center">
