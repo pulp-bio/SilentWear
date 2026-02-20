@@ -81,7 +81,7 @@ config/paper_models_config.yaml
 config/create_windows.yaml
 ```
 
-If you want to collect your own data using your own recordings from, see **Optional: raw data preprocessing** below.
+If you want to collect your own data using the [BioGUI](https://github.com/pulp-bio/biogui/tree/sensors_speech), see **Optional: raw data preprocessing** below.
 
 ## 📊 Reproduce Paper Results
 
@@ -96,13 +96,11 @@ python 20_make_windows_and_features.py --data_dir ./path_to_your_data
 
 This script is responsible to:
 
-This script:
-
-- Reads EMG recordings
+- Reading EMG recordings (saved as .h5 files)
 
 - Generates time windows with user-selectable lengths
 
-- Optionally extracts time-domain and frequency-domain features for classical ML models
+- (Optionally) extracting time-domain and frequency-domain features for classical ML models
 
 ### 2️⃣: Run Experiments
 
@@ -211,11 +209,11 @@ If you ran the inter session models multiple times, change the inter_session_mod
 
 ---
 
-Note: Small performance variations may occur due to randomness but remain within the reported standard deviation.
+## Note: Small performance variations may occur due to randomness but remain within the reported standard deviation.
 
 ## Run minimal experiments.
 
-The `script` folder is built around the standalone scripts contained in:
+The `reproduce_paper_scripts` folder is built around the standalone scripts contained in:
 
 - `utils/II_feature_extraction` and `utils/III_results_analysis`
 
@@ -227,7 +225,7 @@ They can be used as a starting point to **test your own model**.
 
 ## Extras: raw data preprocessing (only if you collected new data)
 
-If you recorded new data using the BioGUI, you can convert your `.bio` recordings to `.h5` using:
+If you recorded new data using the [BioGUI](https://github.com/pulp-bio/biogui/tree/sensors_speech), you can convert your `.bio` recordings to `.h5` using:
 
 ```text
 utils/I_data_preparation/data_preparation.py
@@ -324,13 +322,13 @@ If you use this work, we strongly encourage you to cite:
 
 _Silent-Wear_ has been developed at _ETH Zürich_, by the _PULP-Bio_ [Biomedical Circuits, System](https://iis-projects.ee.ethz.ch/index.php?title=Biomedical_Circuits,_Systems,_and_Applications):
 
-- Giusy Spacone [Scholar](https://scholar.google.com/citations?user=dGE8uMEAAAAJ&hl=en) (Conceptualization, Experimental Design, Development)
-- Sebastian Frey [Scholar](https://scholar.google.com/citations?user=7jhiqz4AAAAJ&hl=en) (PCB design, Firmware, Documentation)
-- Fiona Meier (Hardware Development)
-- Giovanni Pollo [Scholar](https://scholar.google.com/citations?hl=it&user=znSV3doAAAAJ&view_op=list_works&sortby=pubdate) (Experimental Desing, Data Collection, Documentation)
+- [Giusy Spacone](https://scholar.google.com/citations?user=dGE8uMEAAAAJ&hl=en) (Conceptualization, Experimental Design, Development)
+- [Sebastian Frey](https://scholar.google.com/citations?user=7jhiqz4AAAAJ&hl=en) (PCB design, Firmware, Documentation)
+- Fiona Meier(Hardware Development)
+- [Giovanni Pollo] (https://scholar.google.com/citations?hl=it&user=znSV3doAAAAJ&view_op=list_works&sortby=pubdate) (Experimental Desing, Data Collection, Documentation)
 
-- Prof. Luca Benini [Scholar](https://scholar.google.com/citations?user=8riq3sYAAAAJ&hl=en)(Supervision, Conceptualization)
-- Dr. Andrea Cossettini [Scholar](https://scholar.google.com/citations?user=d8O91jIAAAAJ&hl=en)(Supervision, Project administration)
+- Prof.[Luca Benini](https://scholar.google.com/citations?user=8riq3sYAAAAJ&hl=en)(Supervision, Conceptualization)
+- Dr.[Andrea Cossettini](https://scholar.google.com/citations?user=d8O91jIAAAAJ&hl=en)(Supervision, Project administration)
 
 ## 📄 License
 
