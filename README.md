@@ -13,6 +13,18 @@ _Silent-Wear_ is an end-to-end, fully open-source wearable system for _vocalized
 </tr>
 </table>
 
+## 👨‍💻 Contributors
+
+_Silent-Wear_ has been developed at _ETH Zürich_, by the [PULP-Bio](https://iis-projects.ee.ethz.ch/index.php?title=Biomedical_Circuits,_Systems,_and_Applications):
+
+- [Giusy Spacone](https://scholar.google.com/citations?user=dGE8uMEAAAAJ&hl=en): Conceptualization, Experimental Design, Development
+- [Sebastian Frey](https://scholar.google.com/citations?user=7jhiqz4AAAAJ&hl=en): PCB design, Firmware, Documentation
+- Fiona Meier: Hardware Development
+- [Giovanni Pollo](https://scholar.google.com/citations?hl=it&user=znSV3doAAAAJ&view_op=list_works&sortby=pubdate): Experimental Desing, Data Collection, Documentation
+
+- Prof. [Luca Benini](https://scholar.google.com/citations?user=8riq3sYAAAAJ&hl=en): Supervision, Conceptualization
+- Dr. [Andrea Cossettini](https://scholar.google.com/citations?user=d8O91jIAAAAJ&hl=en): Supervision, Project administration
+
 ## ⚙️ General Overview of the System
 
 _Silent-Wear_ relies on the following building blocks:
@@ -317,18 +329,6 @@ If you use this work, we strongly encourage you to cite:
   keywords={Electrocardiography;Biomedical monitoring;Monitoring;Electromyography;Electroencephalography;Artificial intelligence;Heart rate;Estimation;Temperature measurement;Hardware;biopotential;ExG;photoplethysmogram;Human-Machine Interface;sensor fusion},
   doi={10.1109/TBCAS.2026.3652501}}
 ```
-
-## 👨‍💻 Contributors
-
-_Silent-Wear_ has been developed at _ETH Zürich_, by the [PULP-Bio](https://iis-projects.ee.ethz.ch/index.php?title=Biomedical_Circuits,_Systems,_and_Applications):
-
-- [Giusy Spacone](https://scholar.google.com/citations?user=dGE8uMEAAAAJ&hl=en): Conceptualization, Experimental Design, Development
-- [Sebastian Frey](https://scholar.google.com/citations?user=7jhiqz4AAAAJ&hl=en): PCB design, Firmware, Documentation
-- Fiona Meier: Hardware Development
-- [Giovanni Pollo](https://scholar.google.com/citations?hl=it&user=znSV3doAAAAJ&view_op=list_works&sortby=pubdate): Experimental Desing, Data Collection, Documentation
-
-- Prof. [Luca Benini](https://scholar.google.com/citations?user=8riq3sYAAAAJ&hl=en): Supervision, Conceptualization
-- Dr. [Andrea Cossettini](https://scholar.google.com/citations?user=d8O91jIAAAAJ&hl=en): Supervision, Project administration
 
 ## 📄 License
 
