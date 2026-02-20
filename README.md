@@ -221,7 +221,7 @@ If you ran the inter session models multiple times, change the inter_session_mod
 
 ---
 
-## Note: Small performance variations may occur due to randomness but remain within the reported standard deviation.
+Note: Small performance variations may occur due to randomness but remain within the reported standard deviation.
 
 ## Run minimal experiments.
 
