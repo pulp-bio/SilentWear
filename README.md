@@ -320,7 +320,7 @@ If you use this work, we strongly encourage you to cite:
 
 ## 👨‍💻 Contributors
 
-_Silent-Wear_ has been developed at _ETH Zürich_, by the _PULP-Bio_ [Biomedical Circuits, System](https://iis-projects.ee.ethz.ch/index.php?title=Biomedical_Circuits,_Systems,_and_Applications):
+_Silent-Wear_ has been developed at _ETH Zürich_, by the [PULP-Bio](https://iis-projects.ee.ethz.ch/index.php?title=Biomedical_Circuits,_Systems,_and_Applications):
 
 - [Giusy Spacone](https://scholar.google.com/citations?user=dGE8uMEAAAAJ&hl=en) (Conceptualization, Experimental Design, Development)
 - [Sebastian Frey](https://scholar.google.com/citations?user=7jhiqz4AAAAJ&hl=en) (PCB design, Firmware, Documentation)
