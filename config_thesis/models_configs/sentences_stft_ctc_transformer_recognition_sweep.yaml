@@ -1,0 +1,45 @@
+# Transformer encoder | STFT | CTC | sentences
+# free-character recognition, greedy, log-probabilities dumped for the offline beam sweep.
+model:
+  kind: dl
+  name: speechnet_transformer
+  kwargs:
+    domain: "stft"
+    spec_augment: true
+    p_dropout: 0.5
+    global_pool: avg
+    d_model: 128
+    nhead: 4
+    num_layers: 4
+    dim_feedforward: 384
+    transformer_dropout: 0.1
+
+    stft_cfg:
+      n_fft: 64
+      hop_length: 5
+      power: 2.0
+      normalized: true
+
+    blocks_config:
+      - { out_channels: 32,  kernel: [3, 3], pool: [2, 2] }
+      - { out_channels: 64,  kernel: [3, 3], pool: [2, 2] }
+      - { out_channels: 128, kernel: [3, 3], pool: [2, 1] }
+      - { out_channels: 128, kernel: [3, 3], pool: [2, 1] }
+
+    train_cfg:
+      loss_name: ctc
+      ctc:
+        blank_id: 0
+        lexicon_path: lexicon/silentwear_lexicon_sentences.txt
+        decoding: recognition
+        decode_strategy: greedy
+        beam_width: 10
+        label_smoothing: 0.0
+        dump_logprobs: true     # <-- dump test log-probs for the offline beam sweep
+      num_epochs: 150
+      warmup_epochs: 10
+      grad_clip_norm: 1.0
+      optimizer_cfg: { "name": "adamw", "lr": 1e-3 }
+      scheduler: { name: ReduceLROnPlateau, mode: min, factor: 0.1, patience: 12 }
+      early_stop_patience: 30
+      weight_decay: 1e-4

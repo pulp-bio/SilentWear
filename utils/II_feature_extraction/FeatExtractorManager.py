@@ -1,4 +1,5 @@
 # Copyright ETH Zurich 2026
+# Modified by: Carola Bonamico; Date: 10/09/2026
 # Licensed under Apache v2.0 see LICENSE for details.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -14,6 +15,11 @@ from typing import Dict, Tuple, Optional
 import numpy as np
 from scipy.signal import welch
 import pywt
+
+
+# ---------------------------------------------------------------------------
+# Feature registry
+# ---------------------------------------------------------------------------
 
 
 class FeatureRegistry:
@@ -61,6 +67,11 @@ class FeatureRegistry:
         invalid = [f for f in features if f not in cls.ALL]
         if invalid:
             raise ValueError(f"Invalid feature(s): {invalid}. Allowed features: {cls.ALL}")
+
+
+# ---------------------------------------------------------------------------
+# Feature extractors
+# ---------------------------------------------------------------------------
 
 
 class TimeDomainFeatureExtractor:
@@ -193,6 +204,11 @@ class WaveletFeatureExtractor:
             "cD1m": float(np.mean(cD1)),
             "cD1s": float(np.std(cD1)),
         }
+
+
+# ---------------------------------------------------------------------------
+# Pipeline
+# ---------------------------------------------------------------------------
 
 
 class FeatureExtractor:

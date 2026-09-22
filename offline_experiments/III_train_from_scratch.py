@@ -1,4 +1,5 @@
 # Copyright ETH Zurich 2026
+# Modified by: Carola Bonamico; Date: 10/09/2026
 # Licensed under Apache v2.0 see LICENSE for details.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -33,8 +34,13 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from models.seeds import *  # noqa: F401,F403
 from offline_experiments.Model_Fine_Tuner import Model_Fine_Tuner
-from offline_experiments.general_utils import check_data_directories
+from offline_experiments.general_utils import base_window_rows, check_data_directories, training_rows_with_augmentation
 from utils.general_utils import load_subjects_data, open_file
+
+
+# ---------------------------------------------------------------------------
+# Training setup
+# ---------------------------------------------------------------------------
 
 
 def build_bs_directory(model_base_folder: Path) -> Path:
@@ -53,29 +59,54 @@ def build_bs_directory(model_base_folder: Path) -> Path:
     raise RuntimeError("Could not find a free bs_config_<N> directory name.")
 
 
+def _pick_tfs_schedule(train_cfg: dict, tfs_cfg: dict, first_batch: bool) -> Tuple[float, int]:
+    """Select lr/epochs for TFS while supporting optional CTC-specific keys."""
+    loss_name = str(train_cfg.get("loss_name", "")).lower().strip()
+    is_ctc = loss_name == "ctc"
+
+    if first_batch:
+        lr_key = "lr_first_train_ctc" if is_ctc and "lr_first_train_ctc" in tfs_cfg else "lr_first_train"
+        epochs_key = (
+            "num_epochs_first_train_ctc"
+            if is_ctc and "num_epochs_first_train_ctc" in tfs_cfg
+            else "num_epochs_first_train"
+        )
+        lr_default = float(train_cfg.get("lr", 1e-3))
+        epochs_default = int(train_cfg.get("num_epochs_first_train", train_cfg.get("num_epochs", 100)))
+    else:
+        lr_key = "fs_lr_ctc" if is_ctc and "fs_lr_ctc" in tfs_cfg else "fs_lr"
+        epochs_key = (
+            "num_fs_epochs_ctc" if is_ctc and "num_fs_epochs_ctc" in tfs_cfg else "num_fs_epochs"
+        )
+        lr_default = float(train_cfg.get("lr", 1e-3))
+        epochs_default = int(train_cfg.get("num_epochs", 100))
+
+    lr_new = float(tfs_cfg.get(lr_key, lr_default))
+    num_epochs_new = int(tfs_cfg.get(epochs_key, epochs_default))
+    return lr_new, num_epochs_new
+
+
 def build_tfs_model_cfg(
     model_config: dict, tfs_cfg: dict, save_path: Optional[Path] = None
 ) -> dict:
     """Build the incremental training config starting from the base model_cfg."""
     model_config = copy.deepcopy(model_config)
-    train_cfg = model_config["model"]["kwargs"]["train_cfg"]
+    train_cfg = copy.deepcopy(model_config["model"]["kwargs"]["train_cfg"])
 
-    optimizer_old = train_cfg["optimizer_cfg"]
-    lr_new = float(tfs_cfg["fs_lr"])
-    optimizer_cfg_new = {"lr": lr_new, "name": optimizer_old["name"]}
+    lr_new, num_epochs_new = _pick_tfs_schedule(train_cfg, tfs_cfg, first_batch=False)
 
-    scheduler = train_cfg.get("scheduler", None)
-    weight_decay = train_cfg.get("weight_decay", 0)
-    es_patience = train_cfg.get("early_stop_patience", 10)
+    optimizer_old = copy.deepcopy(train_cfg.get("optimizer_cfg", {}))
+    optimizer_name = optimizer_old.get("name", "adam")
+    optimizer_cfg_new = {**optimizer_old, "lr": lr_new, "name": optimizer_name}
 
-    model_config["model"]["kwargs"]["train_cfg"] = {
-        "lr": lr_new,
-        "num_epochs": int(tfs_cfg["num_fs_epochs"]),
-        "optimizer_cfg": optimizer_cfg_new,
-        "scheduler": scheduler,
-        "weight_decay": weight_decay,
-        "early_stop_patience": es_patience,
-    }
+    train_cfg["lr"] = lr_new
+    train_cfg["num_epochs"] = int(num_epochs_new)
+    train_cfg["optimizer_cfg"] = optimizer_cfg_new
+    train_cfg["scheduler"] = train_cfg.get("scheduler", None)
+    train_cfg["weight_decay"] = train_cfg.get("weight_decay", 0)
+    train_cfg["early_stop_patience"] = train_cfg.get("early_stop_patience", 10)
+
+    model_config["model"]["kwargs"]["train_cfg"] = train_cfg
 
     if save_path is not None:
         with open(save_path, "w") as f:
@@ -87,28 +118,25 @@ def build_tfs_model_cfg(
 def tfs_cfg_first_run(cfg: dict, lr_new: float = 1e-3, num_epochs_new: int = 50) -> dict:
     """Adjust config for the first batch training run."""
     cfg = copy.deepcopy(cfg)
-    train_cfg = cfg["model"]["kwargs"]["train_cfg"]
+    train_cfg = copy.deepcopy(cfg["model"]["kwargs"]["train_cfg"])
 
-    optimizer_old = train_cfg["optimizer_cfg"]
-    lr_base = float(train_cfg["lr"])
-    epochs_base = int(train_cfg.get("num_epochs_first_train", 100))
+    optimizer_old = copy.deepcopy(train_cfg.get("optimizer_cfg", {}))
+    optimizer_name = optimizer_old.get("name", "adam")
+    lr_base = float(train_cfg.get("lr", 1e-3))
+    epochs_base = int(train_cfg.get("num_epochs_first_train", train_cfg.get("num_epochs", 100)))
 
     lr_final = max(lr_base, float(lr_new))
     epochs_final = max(epochs_base, int(num_epochs_new))
-    es_patience = train_cfg.get("early_stop_patience", 10)
 
-    optimizer_cfg_new = {"lr": lr_final, "name": optimizer_old["name"]}
-    scheduler = train_cfg.get("scheduler", None)
-    weight_decay = train_cfg.get("weight_decay", 0)
+    optimizer_cfg_new = {**optimizer_old, "lr": lr_final, "name": optimizer_name}
+    train_cfg["lr"] = lr_final
+    train_cfg["num_epochs"] = epochs_final
+    train_cfg["optimizer_cfg"] = optimizer_cfg_new
+    train_cfg["scheduler"] = train_cfg.get("scheduler", None)
+    train_cfg["weight_decay"] = train_cfg.get("weight_decay", 0)
+    train_cfg["early_stop_patience"] = train_cfg.get("early_stop_patience", 10)
 
-    cfg["model"]["kwargs"]["train_cfg"] = {
-        "lr": lr_final,
-        "num_epochs": epochs_final,
-        "optimizer_cfg": optimizer_cfg_new,
-        "scheduler": scheduler,
-        "weight_decay": weight_decay,
-        "early_stop_patience": es_patience,
-    }
+    cfg["model"]["kwargs"]["train_cfg"] = train_cfg
     return cfg
 
 
@@ -128,6 +156,11 @@ def return_batches_for_training(tfs_cfg: dict, df: pd.DataFrame) -> Tuple[List[i
         return [int(tfs_cfg["single_batch_id"])], None
 
     raise ValueError(f"Unknown batch_ft_scheme: {scheme}")
+
+
+# ---------------------------------------------------------------------------
+# Training driver
+# ---------------------------------------------------------------------------
 
 
 def run_train_from_scratch_for(
@@ -194,12 +227,10 @@ def run_train_from_scratch_for(
                 model_to_ft = None
                 model_to_name = "RANDOM_INIT"
 
-                lr_first = tfs_cfg.get(
-                    "lr_first_train", tfs_model_cfg["model"]["kwargs"]["train_cfg"]["lr"]
-                )
-                epochs_first = tfs_cfg.get(
-                    "num_epochs_first_train",
-                    tfs_model_cfg["model"]["kwargs"]["train_cfg"]["num_epochs"],
+                lr_first, epochs_first = _pick_tfs_schedule(
+                    tfs_model_cfg["model"]["kwargs"]["train_cfg"],
+                    tfs_cfg,
+                    first_batch=True,
                 )
                 batch_model_cfg = tfs_cfg_first_run(
                     tfs_model_cfg, lr_new=float(lr_first), num_epochs_new=int(epochs_first)
@@ -211,24 +242,32 @@ def run_train_from_scratch_for(
 
             new_model_save_path = model_bs_folder / f"session_{fold_id}_bs_{batch_id}.pt"
             df_batch = df_test_session[df_test_session["batch_id"] == batch_id]
+            df_batch_base = base_window_rows(df_batch)
 
             if base_cfg["experiment"].get("include_rest", False):
-                min_samples = df_batch["Label_int"].value_counts().min()
-                idx_rest = df_batch[df_batch["Label_str"] == "rest"].index.values
+                min_samples = df_batch_base["Label_int"].value_counts().min()
+                idx_rest = df_batch_base[df_batch_base["Label_str"] == "rest"].index.values
                 index_rest_ds = (
-                    df_batch[df_batch["Label_str"] == "rest"]
+                    df_batch_base[df_batch_base["Label_str"] == "rest"]
                     .sample(n=min_samples, random_state=base_cfg["experiment"]["seed"])
                     .index.values
                 )
                 idx_to_drop = np.setdiff1d(idx_rest, index_rest_ds)
-                df_batch = df_batch.drop(index=idx_to_drop)
+                df_batch_base = df_batch_base.drop(index=idx_to_drop.tolist())
 
-            df_train, df_val = train_test_split(
-                df_batch,
+            df_train_base, df_val = train_test_split(
+                df_batch_base,
                 test_size=0.3,
                 shuffle=True,
-                random_state=42,
-                stratify=df_batch["Label_int"],
+                random_state=int(base_cfg.get("experiment", {}).get("seed", 0)),
+                stratify=df_batch_base["Label_int"],
+            )
+
+            df_train = training_rows_with_augmentation(
+                df_batch,
+                df_train_base,
+                mode=base_cfg.get("experiment", {}).get("augmentation_train_mode", "augmented_size"),
+                seed=int(base_cfg.get("experiment", {}).get("seed", 0)),
             )
 
             model_fine_tuner = Model_Fine_Tuner(
@@ -242,6 +281,8 @@ def run_train_from_scratch_for(
             )
 
             metrics_before = model_fine_tuner.test_zero_shot_acc()
+            if metrics_before is None:
+                raise ValueError("Zero-shot metrics are missing.")
 
             row = {
                 "subject": sub,
@@ -267,6 +308,11 @@ def run_train_from_scratch_for(
     return model_bs_folder
 
 
+# ---------------------------------------------------------------------------
+# Trainer wrapper
+# ---------------------------------------------------------------------------
+
+
 class TrainFromScratch_Model_Trainer:
     """Importable trainer compatible with scripts/30_run_experiments.py."""
 
@@ -290,6 +336,11 @@ class TrainFromScratch_Model_Trainer:
             model_cfg=self.model_cfg,
             tfs_cfg=self.tfs_cfg,
         )
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 
 def main():

@@ -2,6 +2,7 @@
 
 
 # Copyright ETH Zurich 2026
+# Modified by: Carola Bonamico; Date: 10/09/2026
 # Licensed under Apache v2.0 see LICENSE for details.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -53,12 +54,14 @@ from matplotlib.lines import Line2D
 import matplotlib.patches as patches
 
 # Project-level imports
-project_root = Path().resolve()
+project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root))
 from utils.general_utils import open_file
 
 
-# ------------------------- small helpers -------------------------
+# ---------------------------------------------------------------------------
+# Small helpers
+# ---------------------------------------------------------------------------
 
 
 def _model_name_id_from_window_ms(win_ms: int) -> str:
@@ -96,7 +99,9 @@ def _ensure_sorted_by_x(summary_subject: dict) -> dict:
     return out
 
 
-# ------------------------- core loaders -------------------------
+# ---------------------------------------------------------------------------
+# Core loaders
+# ---------------------------------------------------------------------------
 
 
 def load_results(
@@ -210,12 +215,12 @@ def load_results(
         for _, group_df in groups:
             num_prev_ft_rounds.append(int(group_df["num_prev_ft_rounds"].iloc[0]))
 
-            zs = group_df["zero_shot_balanced_acc"].values
+            zs = group_df["zero_shot_balanced_acc"].to_numpy(dtype=float)
             acc_means.append(np.mean(zs))
             acc_stds.append(np.std(zs))
 
             if type == "ft":
-                noft = group_df["balanced_acc_no_ft"].values
+                noft = group_df["balanced_acc_no_ft"].to_numpy(dtype=float)
                 acc_noft_means.append(np.mean(noft))
                 acc_noft_stds.append(np.std(noft))
 
@@ -245,7 +250,9 @@ def load_results(
     return summary_condition_across_subjects
 
 
-# ------------------------- tabulation -------------------------
+# ---------------------------------------------------------------------------
+# Tabulation
+# ---------------------------------------------------------------------------
 
 
 def summarize_subject_table(summary_condition_across_subjects, ft_id, condition):
@@ -301,10 +308,10 @@ def summary_to_csv(summary_ft, summary_baseline, res_save_folder, condition, mod
     df_summary = pd.DataFrame(summary_ft)
 
     # ---- FT mean across subjects (by column) ----
-    subjs_accs_means = np.vstack(df_summary["subj_acc_means"].values)
+    subjs_accs_means = np.vstack(df_summary["subj_acc_means"].to_list())
     mean_across_subjs = np.mean(subjs_accs_means, axis=0)
 
-    subjs_accs_means_noft = np.vstack(df_summary["subjs_acc_means_noft"].values)
+    subjs_accs_means_noft = np.vstack(df_summary["subjs_acc_means_noft"].to_list())
     mean_across_subjs_no_ft = np.mean(subjs_accs_means_noft, axis=0)
 
     new_row = {
@@ -325,8 +332,8 @@ def summary_to_csv(summary_ft, summary_baseline, res_save_folder, condition, mod
     # ---- Baseline arrays ----
     df_summary_baseline = pd.DataFrame(summary_baseline)
 
-    per_subject_means_baseline = np.vstack(df_summary_baseline["subj_acc_means"].values)
-    per_subject_stds_baseline = np.vstack(df_summary_baseline["subjs_acc_std"].values)
+    per_subject_means_baseline = np.vstack(df_summary_baseline["subj_acc_means"].to_list())
+    per_subject_stds_baseline = np.vstack(df_summary_baseline["subjs_acc_std"].to_list())
 
     # IMPORTANT FIX: compute std across subjects BEFORE appending the mean row
     std_across_subjs_baseline = per_subject_means_baseline.std(axis=0)
@@ -363,7 +370,9 @@ def summary_to_csv(summary_ft, summary_baseline, res_save_folder, condition, mod
     return df_summary
 
 
-# ------------------------- alignment helpers for plotting -------------------------
+# ---------------------------------------------------------------------------
+# Alignment helpers for plotting
+# ---------------------------------------------------------------------------
 
 
 def _idx_for(s, x_target):
@@ -457,7 +466,9 @@ def prepare_aligned(ft_summary, scratch_summary, show_no_ft=True):
     return x, subject_ids, per_subj, info_ft, info_sc, avg
 
 
-# ------------------------- plotting -------------------------
+# ---------------------------------------------------------------------------
+# Plotting
+# ---------------------------------------------------------------------------
 
 
 def _slice_to_x(subj_dict, x_target):
@@ -687,7 +698,9 @@ def plot_subjs_and_avgs(ft_summary, scratch_summary, show_no_ft=True, save_path=
     return info_ft, info_sc
 
 
-# ------------------------- CLI main -------------------------
+# ---------------------------------------------------------------------------
+# CLI main
+# ---------------------------------------------------------------------------
 
 
 def main():
@@ -723,7 +736,8 @@ def main():
     fig_save_folder = artifacts_dir / "figures"
     res_save_folder.mkdir(parents=True, exist_ok=True)
     fig_save_folder.mkdir(parents=True, exist_ok=True)
-
+    
+    print()
     for condition in args.conditions:
         print("Condition:", condition)
         # ---- FT ----
@@ -763,7 +777,7 @@ def main():
             show_no_ft=True,
             save_path=fig_save_folder / f"avg_{condition}_{args.model_name}_{model_name_id}.pdf",
         )
-        print("\n\n")
+        print()
 
 
 if __name__ == "__main__":

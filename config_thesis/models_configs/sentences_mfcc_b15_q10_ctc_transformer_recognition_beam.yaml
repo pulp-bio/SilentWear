@@ -1,0 +1,53 @@
+# Transformer encoder | mel cepstrum, 15 filters / 10 coefficients | CTC | sentences
+# free-character recognition, prefix beam search.
+model:
+  kind: dl
+  name: speechnet_transformer
+  kwargs:
+    domain: "mfcc"
+    spec_augment: true
+    freq_mask_param: 0        # frequency masking disabled (see header)
+    time_mask_param: 20       # unchanged, the model default
+    p_dropout: 0.5
+    global_pool: avg
+    d_model: 128
+    nhead: 4
+    num_layers: 4
+    dim_feedforward: 384
+    transformer_dropout: 0.1
+
+    mfcc_cfg:
+      sample_rate: 500
+      n_mfcc: 10                # retained cepstral coefficients (was 40)
+      melkwargs:
+        n_fft: 128              # 65 spectrogram bins
+        hop_length: 5           # frames = floor(T/hop) + 1  (T=1000 -> 201)
+        n_mels: 15              # triangular filters on the mel scale (was 64)
+
+    # 10 x 201 -> freq 10->5->2->2->2 , time 201->100->50->50->50 (T'=50). ch_last=128.
+    blocks_config:
+      - { out_channels: 32,  kernel: [3, 3], pool: [2, 2] }
+      - { out_channels: 64,  kernel: [3, 3], pool: [2, 2] }
+      - { out_channels: 128, kernel: [3, 3], pool: [1, 1] }
+      - { out_channels: 128, kernel: [3, 3], pool: [1, 1] }
+
+    train_cfg:
+      loss_name: ctc
+      ctc:
+        blank_id: 0
+        lexicon_path: lexicon/silentwear_lexicon_sentences.txt
+        decoding: recognition
+        decode_strategy: beam
+        lexicon_decision: nearest
+        beam_width: 5
+        beam_temperature: 1.6
+        beam_blank_penalty: 0.0
+        beam_length_bonus: 0.0
+        label_smoothing: 0.0
+      num_epochs: 150
+      warmup_epochs: 10
+      grad_clip_norm: 1.0
+      optimizer_cfg: { "name": "adamw", "lr": 1e-3 }
+      scheduler: { name: ReduceLROnPlateau, mode: min, factor: 0.1, patience: 12 }
+      early_stop_patience: 30
+      weight_decay: 1e-4

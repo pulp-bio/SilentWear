@@ -1,0 +1,30 @@
+Layer_Name,Layer_Type,Parameters_Count
+GLOBAL_SUMMARY,Total_Parameters,742896
+GLOBAL_SUMMARY,Trainable_Parameters,742896
+GLOBAL_SUMMARY,Input_Shape,"(1, 14, 1000)"
+GLOBAL_SUMMARY,Conv_Input_Shape,"(1, 1, 14, 1000)"
+GLOBAL_SUMMARY,Forward_FLOPs_per_sample,126152192
+blocks.0.0,Conv2d,96
+blocks.0.1,BatchNorm2d,32
+blocks.0.2,ReLU,0
+blocks.0.3,MaxPool2d,0
+blocks.1.0,Conv2d,2592
+blocks.1.1,BatchNorm2d,64
+blocks.1.2,ReLU,0
+blocks.1.3,MaxPool2d,0
+blocks.2.0,Conv2d,10304
+blocks.2.1,BatchNorm2d,128
+blocks.2.2,ReLU,0
+blocks.2.3,MaxPool2d,0
+blocks.3.0,Conv2d,57408
+blocks.3.1,BatchNorm2d,128
+blocks.3.2,ReLU,0
+blocks.3.3,MaxPool2d,0
+blocks.4.0,Conv2d,8320
+blocks.4.1,BatchNorm2d,256
+blocks.4.2,ReLU,0
+blocks.4.3,MaxPool2d,0
+global_pool,AdaptiveAvgPool2d,0
+dropout,Dropout,0
+rnn,LSTM,659456
+fc,Linear,4112

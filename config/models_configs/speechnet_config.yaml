@@ -27,6 +27,7 @@ model:
         pool: [1, 1]
 
     train_cfg:
+      loss_name: cross_entropy
       num_epochs: 100
       optimizer_cfg: { "name": "adam", "lr": 1e-3 }
       "scheduler":

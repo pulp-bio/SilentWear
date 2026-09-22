@@ -1,0 +1,57 @@
+# Published SilentWear baseline | time domain | CTC | words
+# Architecture and training recipe of the upstream system, reproduced unchanged.
+#
+# This is the CE baseline (speechnet_baseline_words_ce.yaml) with the objective
+# swapped and nothing else touched. That is the whole point of the row it
+# produces in Table 4.2: the backbone is NOT resized, so the three temporal
+# poolings of 8, 4 and 4 leave five frames for a 1.4 s window, and CTC cannot
+# align a target of up to eight characters onto five frames. The measured
+# collapse is the empirical justification for the gentler pooling of the stacks
+# of Table 3.2. Widening the blocks or lowering the pooling here would measure a
+# different model and would leave that argument unsupported.
+model:
+  kind: dl
+  name: speechnet
+  kwargs:
+    p_dropout: 0.5
+    global_pool: avg
+
+    blocks_config:
+      - out_channels: 8
+        kernel: [1, 4]
+        pool: [1, 8]
+
+      - out_channels: 16
+        kernel: [1, 16]
+        pool: [1, 4]
+
+      - out_channels: 16
+        kernel: [1, 8]
+        pool: [1, 4]
+
+      - out_channels: 32
+        kernel: [7, 1]
+        pool: [1, 1]
+
+      - out_channels: 32
+        kernel: [7, 1]
+        pool: [1, 1]
+
+    train_cfg:
+      loss_name: ctc
+      ctc:
+        blank_id: 0
+        lexicon_path: lexicon/silentwear_lexicon_paper.txt
+        decoding: lexicon           # 'lexicon' (closed set) | 'recognition' (free character)
+        decode_strategy: greedy     # 'greedy' (best-path) | 'beam' (CTC prefix beam search)
+      num_epochs: 100
+      optimizer_cfg: { "name": "adam", "lr": 1e-3 }
+      "scheduler":
+        {
+          "factor": 0.1,
+          "mode": "min",
+          "name": "ReduceLROnPlateau",
+          "patience": 2,
+        }
+      early_stop_patience: 10
+      weight_decay: 1e-4

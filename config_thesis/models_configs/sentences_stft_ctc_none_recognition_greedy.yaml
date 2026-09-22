@@ -1,0 +1,41 @@
+# no sequence stage | STFT | CTC | sentences
+# free-character recognition, greedy best-path decoding.
+model:
+  kind: dl
+  name: speechnet
+  kwargs:
+    domain: "stft"
+    spec_augment: true        # frequency/time masking during training
+    p_dropout: 0.5
+    global_pool: avg
+    use_bilstm: false
+    rnn_hidden_dim: 128
+
+    stft_cfg:
+      n_fft: 64               # n_fft // 2 + 1 = 33 frequency bins
+      hop_length: 5           # frames = floor(T/hop) + 1  (T=1000 -> 201)
+      power: 2.0
+      normalized: true
+
+    # 33 x 201 -> freq 33->16->8->4->2 , time 201->100->50->50->50 (T'=50). ch_last=128.
+    blocks_config:
+      - { out_channels: 32,  kernel: [3, 3], pool: [2, 2] }
+      - { out_channels: 64,  kernel: [3, 3], pool: [2, 2] }
+      - { out_channels: 128, kernel: [3, 3], pool: [2, 1] }
+      - { out_channels: 128, kernel: [3, 3], pool: [2, 1] }
+
+    train_cfg:
+      loss_name: ctc
+      ctc:
+        blank_id: 0
+        lexicon_path: lexicon/silentwear_lexicon_sentences.txt
+        decoding: recognition           # 'lexicon' (closed set) | 'recognition' (free character)
+        decode_strategy: greedy    # 'greedy' (best-path) | 'beam' (CTC prefix beam search)
+        beam_width: 10             # beam size used when decode_strategy: beam
+      num_epochs: 150
+      warmup_epochs: 10
+      grad_clip_norm: 1.0
+      optimizer_cfg: { "name": "adamw", "lr": 1e-3 }
+      scheduler: { name: ReduceLROnPlateau, mode: min, factor: 0.1, patience: 12 }
+      early_stop_patience: 30
+      weight_decay: 1e-4

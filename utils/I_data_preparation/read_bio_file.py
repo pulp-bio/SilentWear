@@ -1,4 +1,5 @@
 # Copyright ETH Zurich 2026
+# Modified by: Carola Bonamico; Date: 10/09/2026
 # Licensed under Apache v2.0 see LICENSE for details.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -25,7 +26,7 @@ Processed outputs:
 Notes
 -----
 - The `.bio` format is parsed according to the file header and per-signal metadata.
-- Trigger labels are mapped using `ORIGINAL_LABELS` from `experimental_config`.
+- Trigger labels are mapped using `get_active_labels` from `experimental_config`.
 """
 
 import struct
@@ -34,19 +35,25 @@ from pathlib import Path
 import sys
 import pandas as pd
 import re
+from typing import Optional, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
-from I_data_preparation.emg_processing import *
-from I_data_preparation.experimental_config import *
-from I_data_preparation.visualizations import *
+from I_data_preparation.emg_processing import apply_filters
+from I_data_preparation.experimental_config import FS, get_active_labels
+from I_data_preparation.visualizations import plot_emg_color_by_label
 
 BIO_RE = re.compile(
     r"sess_(?P<session>\d+)_batch_(?P<batch>\d+)(?:_[^_]*)?_(?P<ts>\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.bio$"
 )
 
 
-def read_bio_file(file_path: str) -> dict:
+# ---------------------------------------------------------------------------
+# .bio readers
+# ---------------------------------------------------------------------------
+
+
+def read_bio_file_paper_dataset(file_path: str) -> dict:
     """
     Parameters
     ----------
@@ -133,38 +140,126 @@ def read_bio_file(file_path: str) -> dict:
     return signals
 
 
-def read_single_recording(
-    bio_file_path, session_id, batch_id, hp_cutoff, notch_cutoff, plot=True, save_path=None
-):
+def read_bio_file(file_path: str) -> dict:
+    dtypeMap = {
+        "?": np.dtype("bool"),
+        "b": np.dtype("int8"),
+        "B": np.dtype("uint8"),
+        "h": np.dtype("int16"),
+        "H": np.dtype("uint16"),
+        "i": np.dtype("int32"),
+        "I": np.dtype("uint32"),
+        "q": np.dtype("int64"),
+        "Q": np.dtype("uint64"),
+        "f": np.dtype("float32"),
+        "d": np.dtype("float64"),
+    }
 
+    with open(file_path, "rb") as f:
+        n_signals = struct.unpack("<I", f.read(4))[0]
+        fs_base, n_samp_base = struct.unpack("<fI", f.read(8))
+
+        signals = {}
+        for _ in range(n_signals):
+            sig_name_len = struct.unpack("<I", f.read(4))[0]
+            sig_name = struct.unpack(f"<{sig_name_len}s", f.read(sig_name_len))[0].decode()
+            fs, n_samp, n_ch, dtype = struct.unpack("<f2Ic", f.read(13))
+
+            signals[sig_name] = {
+                "fs": fs,
+                "n_samp": n_samp,
+                "n_ch": n_ch,
+                "dtype": dtypeMap[dtype.decode("ascii")],
+            }
+
+        is_trigger = struct.unpack("<?", f.read(1))[0]
+
+        # 1. Timestamp
+        ts = np.frombuffer(f.read(8 * n_samp_base), dtype=np.float64).reshape(n_samp_base, 1)
+        signals["timestamp"] = {"data": ts, "fs": fs_base}
+
+        # 2. Signals data
+        for sig_name, sig_data in signals.items():
+            if sig_name == "timestamp":
+                continue
+
+            n_samp = sig_data.pop("n_samp")
+            n_ch = sig_data.pop("n_ch")
+            dtype = sig_data.pop("dtype")
+
+            data = np.frombuffer(
+                f.read(dtype.itemsize * n_samp * n_ch), dtype=dtype
+            ).reshape(n_samp, n_ch)
+            sig_data["data"] = data
+
+        # 3. Trigger and clamping
+        if is_trigger:
+            itemsize = 4
+            trigger = np.frombuffer(f.read(itemsize * n_samp_base), dtype=np.int32).reshape(n_samp_base, 1)
+            for sig_name, sig_data in signals.items():
+                if sig_name == "timestamp":
+                    # Align the timestamp length with the trigger length
+                    sig_data["data"] = sig_data["data"][: len(trigger), :]
+                else:
+                    samples_per_packet = sig_data["data"].shape[0] / n_samp_base
+                    # Align the signal length with the trigger length
+                    target_length = int(len(trigger) * samples_per_packet)
+                    sig_data["data"] = sig_data["data"][:target_length, :]
+                    
+            signals["trigger"] = {"data": trigger, "fs": fs_base}
+
+    return signals
+
+
+# ---------------------------------------------------------------------------
+# Single recording processing
+# ---------------------------------------------------------------------------
+
+
+def read_single_recording(
+    bio_file_path,
+    session_id,
+    batch_id,
+    hp_cutoff,
+    notch_cutoff,
+    plot=True,
+    save_path=None,
+    label_mode: str = "word",
+):
+    """Reads a single .bio recording, applies preprocessing, and returns a labeled DataFrame."""
     if bio_file_path.exists() == False:
         print(f"File: {bio_file_path} does not exist, provide a valid file")
         sys.exit()
 
     # check extension
+    emg_df = None
     if bio_file_path.suffix == ".bio":
         signals = read_bio_file(str(bio_file_path))
-        emg_df = prepare_dataset(signals, hp_cutoff=hp_cutoff, notch_cutoff=notch_cutoff)
+        emg_df = prepare_dataset(signals, hp_cutoff=hp_cutoff, notch_cutoff=notch_cutoff, label_mode=label_mode)
+
+    if emg_df is None:
+        raise ValueError(f"Failed to prepare EMG dataframe from file: {bio_file_path}")
 
     emg_df["session_id"] = session_id
     emg_df["batch_id"] = batch_id
-    print(emg_df.columns)
 
-    # Drop channels 12 and 13 (both raw + filtered if present)
-    drop_idxs = [11, 12]  # FIXED!! was
+    drop_idxs = [11, 12]
     drop_cols = []
     for i in drop_idxs:
         drop_cols += [f"Ch_{i}", f"Ch_{i}_filt"]
 
-    plot_emg_color_by_label(emg_df, fs=FS, use_filtered=True, save_path=save_path)
+    if plot:
+        plot_emg_color_by_label(emg_df, fs=FS, use_filtered=True, save_path=save_path)
     emg_df = emg_df.drop(columns=[c for c in drop_cols if c in emg_df.columns])
-
-    # if plot:
-    #     plot_emg_color_by_label(emg_df, fs=FS, use_filtered=True, save_path=save_path)
 
     # drop channel 12 and 13
     print(emg_df["session_id"])
     return emg_df
+
+
+# ---------------------------------------------------------------------------
+# File discovery and naming
+# ---------------------------------------------------------------------------
 
 
 def find_bio_file(data_dir_raw, subject, condition, session_id, batch_id):
@@ -192,7 +287,7 @@ def find_bio_file(data_dir_raw, subject, condition, session_id, batch_id):
     return matches[0]
 
 
-def parse_bio_filename(path: Path):
+def parse_bio_filename(path: Path) -> Optional[Tuple[int, int, str]]:
     """
     Returns (session_id:int, batch_id:int, timestamp:str) or None if no match.
     """
@@ -203,8 +298,8 @@ def parse_bio_filename(path: Path):
 
 
 def processed_path_for(
-    raw_path: Path, data_dir_processed: Path, condition: str, session_id: int, batch_id: int
-):
+    data_dir_processed: Path, condition: str, session_id: int, batch_id: int
+) -> Path:
     """
     Choose a consistent processed filename.
     """
@@ -230,6 +325,11 @@ def update_index_csv(index_csv_path: Path, rows: list[dict]):
     df.to_csv(index_csv_path, index=False)
 
 
+# ---------------------------------------------------------------------------
+# Batch processing
+# ---------------------------------------------------------------------------
+
+
 def process_all_recordings_for_subject(
     data_dir_raw: Path,
     data_dir_processed: Path,
@@ -237,6 +337,7 @@ def process_all_recordings_for_subject(
     hp_cutoff: int,
     notch_cutoff: int,
     plot: bool,
+    label_mode: str = "word",
 ):
     """
     Scans DATA/raw/<SUB_ID>/(silent|vocalized)/*.bio, processes each, saves to HDF5,
@@ -268,6 +369,7 @@ def process_all_recordings_for_subject(
         elif "vocalized" in parts_lower:
             condition = "vocalized"
 
+        parsed = None
         if bio_path.suffix == ".bio":
             parsed = parse_bio_filename(bio_path)
         if parsed is None:
@@ -276,7 +378,7 @@ def process_all_recordings_for_subject(
             continue
 
         session_id, batch_id, ts = parsed
-        out_path = processed_path_for(bio_path, data_dir_processed, condition, session_id, batch_id)
+        out_path = processed_path_for(data_dir_processed, condition, session_id, batch_id)
 
         if out_path.exists():
             print(f"[SKIP] Already processed: {out_path.name}")
@@ -299,7 +401,7 @@ def process_all_recordings_for_subject(
         try:
             print(f"[PROC] {bio_path.name}")
             emg_df = read_single_recording(
-                bio_path, session_id, batch_id, hp_cutoff, notch_cutoff, plot=plot
+                bio_path, session_id, batch_id, hp_cutoff, notch_cutoff, plot=plot, label_mode=label_mode
             )
 
             emg_df.to_hdf(out_path, key="emg", mode="w")
@@ -353,44 +455,33 @@ def process_all_recordings_for_subject(
     print(f"Index CSV: {index_csv_path}")
 
 
+# ---------------------------------------------------------------------------
+# Diagnostics
+# ---------------------------------------------------------------------------
+
+
 def data_losses_check(counter):
     """
     Docstring for data_losses_check
 
-    :param counter: counter retured by the GUI
-    This function check if data were lost during the data collection
-
+    :param counter: counter returned by the GUI
+    This function checks if data were lost during the data collection
     """
-
-    counter_reconstructed = np.zeros(len(counter), dtype=np.int32)
-    counter_reconstructed[0] = counter[0]
-    prev_counter = counter[0]
-    losses_cnts = 0
-
-    for i, curr_counter in enumerate(counter[1:]):
-
-        # Handle counter reset
-        if prev_counter == 255:
-            # current counter value should be 0. If not, data were lost
-            losses = curr_counter
-            losses_cnts += losses
-        else:
-            losses = curr_counter - (prev_counter + 1)
-            losses_cnts += losses
-
-        counter_reconstructed[i + 1] = counter_reconstructed[i] + losses + 1
-        prev_counter = curr_counter
-    # Sometimes counter does not start from 0, reset
-    counter = counter - counter[0]
-    print(f"Lost:{losses} samples")
-    # Note: first value of the counter might not be 0. This is how the FW is designed
-    if losses_cnts != 0:
+    
+    counter = np.asarray(counter, dtype=np.int64)
+    diffs = (np.diff(counter)) % 256
+    losses_array = diffs - 1
+    losses_cnts = np.sum(losses_array)
+    steps = np.concatenate(([counter[0]], diffs))
+    counter_reconstructed = np.cumsum(steps)
+    if losses_cnts > 0:
         print(f"[COUNTER_CHECK], Lost: {losses_cnts} samples")
         count_diffs = np.diff(counter_reconstructed)
-
-        if np.sum(count_diffs != 1) != losses:
+        if np.sum(count_diffs[count_diffs > 1] - 1) != losses_cnts:
             print("[COUNTER CHECK], dimension mismatch!")
             sys.exit()
+                      
+    return counter_reconstructed, losses_cnts
 
 
 def print_label_statistics(emg_df):
@@ -423,20 +514,39 @@ def print_label_statistics(emg_df):
     print("\n=================================================\n")
 
 
-def prepare_dataset(signals, hp_cutoff, notch_cutoff):
+# ---------------------------------------------------------------------------
+# Dataset preparation
+# ---------------------------------------------------------------------------
+
+
+def prepare_dataset(signals, hp_cutoff, notch_cutoff, label_mode: str = "word"):
 
     # ------------------------------------------------------------
     # 1. Extract signals
-    emg_data = signals["biogap"]["data"]
-    counter = np.hstack(signals["counter"]["data"])
-    # check for data losses
+    emg_data = signals["emg"]["data"]
+    emg_fs = float(signals["emg"]["fs"])
+    counter = signals["counter_emg"]["data"].flatten()
+    trigger = signals["trigger"]["data"].flatten()
+    trigger_fs = float(signals["trigger"]["fs"])
+    
+    # Check for data losses
     # ========== TO-DO: implement extra adjstement in case of data lossess (not needed for recorded data) ============
     data_losses_check(counter)
-    trigger = np.hstack(signals["trigger"]["data"])
-    # 2. Expand trigger (1 packet contains 4 EMG samples)
-    trigger = np.repeat(trigger, 4)
+    
+    # 2. Align trigger to EMG sampling grid
+    emg_len = emg_data.shape[0]
+    trigger_len = trigger.shape[0]
+    emg_times = np.arange(emg_len) / emg_fs
+    trigger_times = np.arange(trigger_len) / trigger_fs
+    idx = np.searchsorted(trigger_times, emg_times, side="right") - 1
+    idx[idx < 0] = 0
+    idx[idx >= trigger_len] = trigger_len - 1
+    trigger = trigger[idx]
+
     # 3. Convert integer labels into string labels
-    labels = np.vectorize(ORIGINAL_LABELS.get)(trigger)
+    active_labels = get_active_labels(label_mode)
+    labels = np.vectorize(active_labels.get)(trigger)
+    
     # 4. Build EMG DataFrame
     emg_df = pd.DataFrame(emg_data, columns=[f"Ch_{i}" for i in range(emg_data.shape[1])])
 
@@ -455,17 +565,16 @@ def prepare_dataset(signals, hp_cutoff, notch_cutoff):
     # Filter data
     for i in range(emg_data.shape[1]):
         emg_df[f"Ch_{i}_filt"] = apply_filters(
-            emg_data[:, i], FS, highpass_cutoff=hp_cutoff, notch_cutoff=notch_cutoff
+            emg_data[:, i], emg_fs, highpass_cutoff=hp_cutoff, notch_cutoff=notch_cutoff
         )
 
-    # Trim recording considering only first and last label
-    first_label_loc = emg_df["Label_int"][emg_df["Label_int"] != 0].index[0]
-    # give some margin (1 sec before)
-    first_label_loc = first_label_loc - FS
-
-    last_label_loc = emg_df["Label_int"][emg_df["Label_int"] != 0].index[-1]
-    # give some margin (1 sec after)
-    last_label_loc = last_label_loc + FS
+    # Trim recording to the labeled region with a 1 s margin on each side.
+    # The DataFrame has a default RangeIndex, so index labels equal positions; we
+    # clamp the bounds to avoid a negative start (which would wrap to the end of
+    # the frame) or an over-bound stop.
+    labeled_idx = emg_df["Label_int"][emg_df["Label_int"] != 0].index
+    first_label_loc = max(0, int(labeled_idx[0] - FS))
+    last_label_loc = min(len(emg_df), int(labeled_idx[-1] + FS))
 
     emg_df = emg_df.iloc[first_label_loc:last_label_loc]
 
@@ -480,6 +589,7 @@ if __name__ == "__main__":
     all_bios_in_folder = sub_raw_data_folder.rglob("*.bio")
     for curr_bio in all_bios_in_folder:
         # print("curr bio is")
+        parsed = None
         if curr_bio.suffix == ".bio":
             parsed = parse_bio_filename(curr_bio)
         if parsed is None:
@@ -487,6 +597,14 @@ if __name__ == "__main__":
             sys.exit()
 
         session_id, batch_id, ts = parsed
-        emg_df = read_single_recording(curr_bio, session_id, batch_id, 20, 50, plot=False)
+
+        signals = read_bio_file(str(curr_bio))
+        emg_fs = float(signals["emg"]["fs"])
+        trigger_fs = float(signals["trigger"]["fs"])
+        print(f"\nFile: {curr_bio.name}")
+        print(f"Sampling frequency EMG: {emg_fs} Hz")
+        print(f"Sampling frequency Trigger: {trigger_fs} Hz\n")
+
+        emg_df = read_single_recording(curr_bio, session_id, batch_id, 20, 50, plot=False, label_mode="word")
 
         print(print_label_statistics(emg_df))

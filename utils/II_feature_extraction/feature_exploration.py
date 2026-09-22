@@ -1,4 +1,5 @@
 # Copyright ETH Zurich 2026
+# Modified by: Carola Bonamico; Date: 10/09/2026
 # Licensed under Apache v2.0 see LICENSE for details.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -11,17 +12,39 @@ This script contains utils function to perfrom Exploratory Data Analysis on the 
 import pandas as pd
 from typing import List, Union
 from pathlib import Path
-from FeatExtractorManager import FeatureRegistry
 import re
-from UmapExtractor import *
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from utils.II_feature_extraction.FeatExtractorManager import FeatureRegistry
+from utils.II_feature_extraction.ProjectionExtractor import (
+    UMAP_Projection_Extractor,
+    UMAPConfig,
+    TSNE_Projection_Extractor,
+    TSNEConfig,
+    PCA_Projection_Extractor,
+    PCAConfig,
+)
+from utils.I_data_preparation.experimental_config import (
+    WINS_AND_FEATURES_DIRNAME,
+    WINDOW_DIR_PREFIX,
+    SILENT_DIRNAME,
+    VOCALIZED_DIRNAME,
+)
 
 
-# ============= USER_EDITABLE PART =============================================
+# ---------------------------------------------------------------------------
+# User-editable settings
+# ---------------------------------------------------------------------------
+
+
 sub_ids = ["S01", "S02", "S03"]  # add as many users as you want
 main_data_directory = Path(
-    r"C:/Users/giusy/OneDrive/Desktop/PAPERS/2026_Sensors_speech/SilentWear/data"
+    r"path/to/your/data"
 )
-wins_feats_name = "wins_and_feats"
+wins_feats_name = WINS_AND_FEATURES_DIRNAME
 win_size_ms = [1400]  # add as many as you want
 sessions_to_consider = ["sess_1", "sess_2"]
 silent_analysis = True
@@ -34,7 +57,11 @@ extract_tsne = False
 consider_time_feats = True
 consider_freq_feats = True
 consider_wavelet_feats = True
-# ============= USER_EDITABLE PART =============================================
+
+
+# ---------------------------------------------------------------------------
+# Session feature analyzer
+# ---------------------------------------------------------------------------
 
 
 class Session_Feature_Analyzer:
@@ -48,8 +75,8 @@ class Session_Feature_Analyzer:
         silent_analysis: bool,
         vocalized_analysis: bool,
         extract_umap: bool,
-        extract_tsne: bool,  # not yet implemented
-        extract_pca: bool,  # not yet implemented
+        extract_tsne: bool,
+        extract_pca: bool,
         consider_time_feats: bool,
         consider_freq_feats: bool,
         consider_wavelet_feats: bool,
@@ -68,12 +95,12 @@ class Session_Feature_Analyzer:
         vocalized_analysis: perform analysis on vocalized data
 
         extract_umap: True if we want to extract UMAP projections, else False
-        extract_tnse : True if we want to extract TSNE projectstion, else False
+        extract_tsne : True if we want to extract TSNE projections, else False
         extract_pca : True if we want to perform PCA, else False
 
         consider_time_feats: True if we want to include Time Features, else False
         consider_freq_feats: True if we want to consider Frequency Features, else False
-        consider_waveleft_feats : True if we want to consider Wavelet Transforms, else False
+        consider_wavelet_feats : True if we want to consider Wavelet Transforms, else False
 
 
         """
@@ -102,10 +129,9 @@ class Session_Feature_Analyzer:
         Return (silent_files, vocalized_files) filtered by one or more session ids.
         If self.session_ids is empty/None, return all files.
         """
-        base_silent = self.data_dire_wins_feats / self.sub_id / "silent" / f"WIN_{self.win_size_ms}"
-        base_vocal = (
-            self.data_dire_wins_feats / self.sub_id / "vocalized" / f"WIN_{self.win_size_ms}"
-        )
+        win_subdir = f"{WINDOW_DIR_PREFIX}{self.win_size_ms}"
+        base_silent = self.data_dire_wins_feats / self.sub_id / SILENT_DIRNAME / win_subdir
+        base_vocal = self.data_dire_wins_feats / self.sub_id / VOCALIZED_DIRNAME / win_subdir
 
         h5_files_silent = sorted(base_silent.rglob("*.h5")) if base_silent.exists() else []
         h5_files_vocal = sorted(base_vocal.rglob("*.h5")) if base_vocal.exists() else []
@@ -186,11 +212,41 @@ class Session_Feature_Analyzer:
 
         return selected_cols
 
-    def main(self):
-        """
-        Docstring for main
+    def _build_extractor(self, method: str):
+        """Build the projection extractor for ``method`` (umap/tsne/pca)."""
+        out_dir = (
+            self.data_dire_wins_feats.parent
+            / Path(f"{method}_plots")
+            / self.sub_id
+            / f"{WINDOW_DIR_PREFIX}{self.win_size_ms}"
+        )
+        if method == "umap":
+            return UMAP_Projection_Extractor(
+                config=UMAPConfig(n_neighbors=20, min_dist=0.05, max_points=5000),
+                out_dir=out_dir,
+                subject_id=self.sub_id,
+            )
+        if method == "tsne":
+            return TSNE_Projection_Extractor(
+                config=TSNEConfig(perplexity=30.0, max_points=5000),
+                out_dir=out_dir,
+                subject_id=self.sub_id,
+            )
+        if method == "pca":
+            return PCA_Projection_Extractor(
+                config=PCAConfig(max_points=5000),
+                out_dir=out_dir,
+                subject_id=self.sub_id,
+            )
+        raise ValueError(f"Unknown projection method: {method}")
 
-        :param self: Description
+    def main(self) -> None:
+        """Run the feature-space exploration.
+
+        Loads the per-condition feature .h5 files, selects the configured feature
+        columns, concatenates the silent/vocalized DataFrames, and produces
+        per-session and across-sessions 2D projection plots for every enabled
+        method (UMAP, t-SNE, PCA).
         """
 
         # Find all files
@@ -199,7 +255,10 @@ class Session_Feature_Analyzer:
         dfs_silent = []
         dfs_vocal = []
 
-        for files, condition in [(h5_files_silent, "silent"), (h5_files_vocalized, "vocalized")]:
+        for files, condition in [
+            (h5_files_silent, SILENT_DIRNAME),
+            (h5_files_vocalized, VOCALIZED_DIRNAME),
+        ]:
             for file_path in files:
                 df = pd.read_hdf(file_path, key="wins_feats")
 
@@ -211,7 +270,7 @@ class Session_Feature_Analyzer:
                 ].copy()
                 df_feats["condition"] = condition
 
-                if condition == "silent":
+                if condition == SILENT_DIRNAME:
                     dfs_silent.append(df_feats)
                 else:
                     dfs_vocal.append(df_feats)
@@ -219,34 +278,39 @@ class Session_Feature_Analyzer:
         df_silent_all = pd.concat(dfs_silent, ignore_index=True) if dfs_silent else None
         df_vocal_all = pd.concat(dfs_vocal, ignore_index=True) if dfs_vocal else None
 
-        umap_extractor = UMAP_Projection_Extractor(
-            config=UMAPConfig(n_neighbors=20, min_dist=0.05, max_points=5000),
-            out_dir=self.data_dire_wins_feats.parent
-            / Path("umap_plots")
-            / self.sub_id
-            / f"WIN_{self.win_size_ms}",
-            subject_id=self.sub_id,
-        )
-
         # Feature columns are self.df_feat_cols_to_consider
-        if df_silent_all is not None:
-            # print("Processing Silent Data.")
-            # print("Contains sessions:", df_silent_all['session_id'].unique(), "Batches:",df_silent_all['batch_id'].unique())
-            # print("Total samples:", len(df_silent_all))
-            umap_extractor.plot_per_session(
-                df_silent_all, self.df_feat_cols_to_consider, condition="silent", show=False
-            )
-            umap_extractor.plot_across_sessions(
-                df_silent_all, self.df_feat_cols_to_consider, condition="silent", show=False
-            )
+        if self.df_feat_cols_to_consider is None:
+            raise ValueError("No feature columns to consider. Check the configuration.")
 
-        if df_vocal_all is not None:
-            umap_extractor.plot_per_session(
-                df_vocal_all, self.df_feat_cols_to_consider, condition="vocalized", show=False
-            )
-            umap_extractor.plot_across_sessions(
-                df_vocal_all, self.df_feat_cols_to_consider, condition="vocalized", show=False
-            )
+        methods = []
+        if self.extract_umap:
+            methods.append("umap")
+        if self.extract_tsne:
+            methods.append("tsne")
+        if self.extract_pca:
+            methods.append("pca")
+
+        if not methods:
+            print("No projection method enabled (set extract_umap / extract_tsne / extract_pca).")
+            return
+
+        condition_frames = [
+            (df_silent_all, SILENT_DIRNAME),
+            (df_vocal_all, VOCALIZED_DIRNAME),
+        ]
+
+        for method in methods:
+            print(f"\n=== Projection method: {method.upper()} ===")
+            extractor = self._build_extractor(method)
+            for df_cond, condition in condition_frames:
+                if df_cond is None:
+                    continue
+                extractor.plot_per_session(
+                    df_cond, self.df_feat_cols_to_consider, condition=condition, show=False
+                )
+                extractor.plot_across_sessions(
+                    df_cond, self.df_feat_cols_to_consider, condition=condition, show=False
+                )
 
 
 if __name__ == "__main__":

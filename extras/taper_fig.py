@@ -1,4 +1,5 @@
 # Copyright ETH Zurich 2026
+# Modified by: Carola Bonamico; Date: 10/09/2026 
 # Licensed under Apache v2.0 see LICENSE for details.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -18,12 +19,23 @@ import matplotlib.patches as patches
 # PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # sys.path.insert(0, str(PROJECT_ROOT))
 from utils.I_data_preparation.experimental_config import FS
+from fig_config import channel_colors, neckband_ch_order
 
 
-###### PLOT IN THE PAPER: subject 4
+# ---------------------------------------------------------------------------
+# User-editable settings
+# ---------------------------------------------------------------------------
+
+
+# PLOT IN THE PAPER: subject 4
 subject_to_consider = "S04"
 main_data_dire_folder = Path("/scratch2/gspacone/DATA_DIR_SILENT")
 save_fig_path = Path("/home/gspacone/Desktop/Silentwear/artifacts/figures")
+
+
+# ---------------------------------------------------------------------------
+# Data helpers
+# ---------------------------------------------------------------------------
 
 
 def find_all_processed_h5(main_data_dire_folder, subject):
@@ -33,6 +45,53 @@ def find_all_processed_h5(main_data_dire_folder, subject):
     # print("Found files for current user:")
     # print(h5_files)
     return h5_files
+
+
+def get_sorted_channel_cols(df, filt_suffix="_filt"):
+    cols = [c for c in df.columns if c.startswith("Ch_") and c.endswith(filt_suffix)]
+
+    def ch_num(c):
+        m = re.search(r"Ch_(\d+)", c)
+        return int(m.group(1)) if m else 10**9
+
+    return sorted(cols, key=ch_num)
+
+
+def short_labels(cols):
+    out = []
+    for c in cols:
+        m = re.search(r"Ch_(\d+)", c)
+        out.append(f"CH{int(m.group(1))}" if m else c)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Figure
+# ---------------------------------------------------------------------------
+
+
+def plot_stacked_channels_in_cell(ax, df_seg, ch_cols, fs, spacing, ylims, alpha=1.0, lw=1.0, channel_colors=None):
+    if df_seg is None or df_seg.empty:
+        ax.set_visible(False)
+        return
+
+    n = len(df_seg)
+    t = np.arange(n) / fs
+
+    sigs = np.vstack([df_seg[c].to_numpy() for c in ch_cols])
+    sigs = sigs - np.median(sigs, axis=1, keepdims=True)
+
+    n_ch = sigs.shape[0]
+    offsets = np.arange(n_ch)[::-1] * spacing
+
+    # one color per channel (matplotlib cycle)
+    for k in range(n_ch):
+        if channel_colors is not None and k < len(channel_colors):
+            ax.plot(t, sigs[k] + offsets[k], alpha=alpha, linewidth=lw, color=channel_colors[k])
+        else:
+            ax.plot(t, sigs[k] + offsets[k], alpha=alpha, linewidth=lw)
+
+    ax.set_ylim(*ylims)
 
 
 def plot_words_grid_all_channels(
@@ -88,45 +147,6 @@ def plot_words_grid_all_channels(
       Hide them with tick_params(labelleft=False) instead.
     """
 
-    def _get_sorted_channel_cols(df, filt_suffix="_filt"):
-        cols = [c for c in df.columns if c.startswith("Ch_") and c.endswith(filt_suffix)]
-
-        def ch_num(c):
-            m = re.search(r"Ch_(\d+)", c)
-            return int(m.group(1)) if m else 10**9
-
-        return sorted(cols, key=ch_num)
-
-    def _short_labels(cols):
-        out = []
-        for c in cols:
-            m = re.search(r"Ch_(\d+)", c)
-            out.append(f"CH{int(m.group(1))}" if m else c)
-        return out
-
-    def _plot_stacked_channels_in_cell(ax, df_seg, ch_cols, fs, spacing, ylims, alpha=1.0, lw=1.0):
-        if df_seg is None or df_seg.empty:
-            ax.set_visible(False)
-            return
-
-        n = len(df_seg)
-        t = np.arange(n) / fs
-
-        sigs = np.vstack([df_seg[c].to_numpy() for c in ch_cols])
-        sigs = sigs - np.median(sigs, axis=1, keepdims=True)
-
-        n_ch = sigs.shape[0]
-        offsets = np.arange(n_ch)[::-1] * spacing
-
-        # one color per channel (matplotlib cycle)
-        for k in range(n_ch):
-            if channel_colors is not None:
-                ax.plot(t, sigs[k] + offsets[k], alpha=alpha, linewidth=lw, color=channel_colors[k])
-            else:
-                ax.plot(t, sigs[k] + offsets[k], alpha=alpha, linewidth=lw)
-
-        ax.set_ylim(*ylims)
-
     # ---------------- figure ----------------
     fig, axs = plt.subplots(2, 8, figsize=figsize, sharex=True, sharey=True)
     fig.subplots_adjust(left=L, right=R, bottom=B, top=T, wspace=wspace, hspace=hspace)
@@ -146,7 +166,7 @@ def plot_words_grid_all_channels(
 
             emg_df = pd.read_hdf(h5_file, key=key)
             if cols is None:
-                ch_cols = _get_sorted_channel_cols(emg_df, filt_suffix=filt_suffix)
+                ch_cols = get_sorted_channel_cols(emg_df, filt_suffix=filt_suffix)
             else:
                 ch_cols = cols
             if len(ch_cols) == 0:
@@ -162,7 +182,7 @@ def plot_words_grid_all_channels(
             ylims = (-margin_factor * spacing, (n_ch - 1) * spacing + margin_factor * spacing)
 
             offsets_by_row[axs_row] = np.arange(n_ch)[::-1] * spacing
-            ylabels_by_row[axs_row] = _short_labels(ch_cols) if short_channel_labels else ch_cols
+            ylabels_by_row[axs_row] = short_labels(ch_cols) if short_channel_labels else ch_cols
 
             axs_word_cnt = 0
             for word_cnt, word in enumerate(unique_words):
@@ -181,7 +201,7 @@ def plot_words_grid_all_channels(
 
                 seg = emg_word.loc[idx_word_start[example_idx] : idx_word_stop[example_idx]]
 
-                _plot_stacked_channels_in_cell(
+                plot_stacked_channels_in_cell(
                     ax=ax,
                     df_seg=seg,
                     ch_cols=ch_cols,
@@ -190,6 +210,7 @@ def plot_words_grid_all_channels(
                     ylims=ylims,
                     alpha=alpha,
                     lw=lw,
+                    channel_colors=channel_colors,
                 )
 
                 ax.grid(True, alpha=grid_alpha)
@@ -291,6 +312,11 @@ def plot_words_grid_all_channels(
     return fig, axs
 
 
+# ---------------------------------------------------------------------------
+# Diagnostics
+# ---------------------------------------------------------------------------
+
+
 def check_word_bounderies(emg_word):
     idx_word = emg_word.index
     # identify start and stops
@@ -314,34 +340,9 @@ def check_word_bounderies(emg_word):
 
 if __name__ == "__main__":
 
-    neckband_ch_order = [0, 1, 2, 5, 3, 4, 7, 6, 8, 15, 9, 14, 10, 13]
     cols = []
     for id in neckband_ch_order:
         cols.append(f"Ch_{id}_filt")
-
-    channel_colors = [
-        # Blue pair
-        "#1f77b4",  # CH0
-        "#6baed6",  # CH1
-        # Orange pair
-        "#ff7f0e",  # CH2
-        "#ffbb78",  # CH3
-        # Green pair
-        "#2ca02c",  # CH4
-        "#98df8a",  # CH5
-        # Red pair
-        "#d62728",  # CH6
-        "#ff9896",  # CH7
-        # Purple pair
-        "#9467bd",  # CH8
-        "#c5b0d5",  # CH9
-        # Brown pair
-        "#8c564b",  # CH10
-        "#c49c94",  # CH11
-        # Teal pair
-        "#17becf",  # CH12
-        "#9edae5",  # CH13
-    ]
 
     unique_words = ["rest", "up", "down", "left", "right", "start", "stop", "forward", "backward"]
     word_title = ["REST", "UP", "DOWN", "LEFT", "RIGHT", "START", "STOP", "FORWARD", "BACKWARD"]

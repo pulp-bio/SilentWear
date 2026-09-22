@@ -1,4 +1,5 @@
 # Copyright ETH Zurich 2026
+# Modified by: Carola Bonamico; Date: 10/09/2026
 # Licensed under Apache v2.0 see LICENSE for details.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -47,8 +48,13 @@ from models.TorchTrainer import evaluate_model
 from models.utils import load_pretrained_model
 from offline_experiments.Model_Fine_Tuner import Model_Fine_Tuner
 from offline_experiments.II_inter_session_models import Inter_Session_Model_Trainer
-from offline_experiments.general_utils import check_data_directories
+from offline_experiments.general_utils import base_window_rows, check_data_directories, training_rows_with_augmentation
 from utils.general_utils import load_subjects_data, open_file
+
+
+# ---------------------------------------------------------------------------
+# Fine-tuning setup
+# ---------------------------------------------------------------------------
 
 
 def build_ft_directory(model_base_folder: Path) -> Path:
@@ -65,6 +71,26 @@ def build_ft_directory(model_base_folder: Path) -> Path:
             continue
 
     raise RuntimeError("Could not find a free ft_config_<N> directory name.")
+
+
+def _pick_ft_schedule(train_cfg: dict, ft_cfg: dict) -> Tuple[float, int]:
+    """Select lr/epochs for FT while supporting optional CTC-specific keys."""
+    loss_name = str(train_cfg.get("loss_name", "")).lower().strip()
+    is_ctc = loss_name == "ctc"
+
+    if is_ctc and ("ft_lr_ctc" in ft_cfg or "num_ft_epochs_ctc" in ft_cfg):
+        lr_key = "ft_lr_ctc"
+        epochs_key = "num_ft_epochs_ctc"
+    else:
+        lr_key = "ft_lr"
+        epochs_key = "num_ft_epochs"
+
+    lr_default = float(train_cfg.get("lr", 1e-3))
+    epochs_default = int(train_cfg.get("num_epochs", 50))
+
+    lr_new = float(ft_cfg.get(lr_key, ft_cfg.get("ft_lr", lr_default)))
+    num_epochs_new = int(ft_cfg.get(epochs_key, ft_cfg.get("num_ft_epochs", epochs_default)))
+    return lr_new, num_epochs_new
 
 
 def check_base_models_exist(
@@ -106,24 +132,22 @@ def check_base_models_exist(
 def build_ft_model_cfg(model_config: dict, ft_cfg: dict, save_path: Optional[Path] = None) -> dict:
     """Build a fine-tuning model config starting from base model_cfg."""
     model_config = copy.deepcopy(model_config)
-    train_cfg = model_config["model"]["kwargs"]["train_cfg"]
+    train_cfg = copy.deepcopy(model_config["model"]["kwargs"]["train_cfg"])
 
-    optimizer_old = train_cfg["optimizer_cfg"]
-    lr_new = float(ft_cfg["ft_lr"])
-    optimizer_cfg_new = {"lr": lr_new, "name": optimizer_old["name"]}
+    lr_new, num_epochs_new = _pick_ft_schedule(train_cfg, ft_cfg)
 
-    scheduler = train_cfg.get("scheduler", None)
-    weight_decay = train_cfg.get("weight_decay", 0)
-    es_patience = train_cfg.get("early_stop_patience", 10)
+    optimizer_old = copy.deepcopy(train_cfg.get("optimizer_cfg", {}))
+    optimizer_name = optimizer_old.get("name", "adam")
+    optimizer_cfg_new = {**optimizer_old, "lr": lr_new, "name": optimizer_name}
 
-    model_config["model"]["kwargs"]["train_cfg"] = {
-        "lr": lr_new,
-        "num_epochs": int(ft_cfg["num_ft_epochs"]),
-        "optimizer_cfg": optimizer_cfg_new,
-        "scheduler": scheduler,
-        "weight_decay": weight_decay,
-        "early_stop_patience": es_patience,
-    }
+    train_cfg["lr"] = lr_new
+    train_cfg["num_epochs"] = int(num_epochs_new)
+    train_cfg["optimizer_cfg"] = optimizer_cfg_new
+    train_cfg["scheduler"] = train_cfg.get("scheduler", None)
+    train_cfg["weight_decay"] = train_cfg.get("weight_decay", 0)
+    train_cfg["early_stop_patience"] = train_cfg.get("early_stop_patience", 10)
+
+    model_config["model"]["kwargs"]["train_cfg"] = train_cfg
 
     if save_path is not None:
         with open(save_path, "w") as f:
@@ -164,10 +188,15 @@ def _ft_output_root(
     base_cfg: dict, model_cfg: dict, ft_cfg: dict, sub: str, cond: str, model_id: str
 ) -> Path:
     model_name = model_cfg["model"]["name"]
-    model_id = ft_cfg.get("model_name_id", base_cfg.get("model_name_id", "w1400ms"))
+    model_id = model_id or ft_cfg.get("model_name_id", base_cfg.get("model_name_id", "w1400ms"))
     artifacts_root = Path(base_cfg["data"]["models_main_directory"])
 
     return artifacts_root / "models" / "inter_session_ft" / sub / cond / model_name / model_id
+
+
+# ---------------------------------------------------------------------------
+# Fine-tuning driver
+# ---------------------------------------------------------------------------
 
 
 def run_ft_for(
@@ -202,11 +231,13 @@ def run_ft_for(
     csv_summary = open_file(model_base_folder / "cv_summary.csv")
 
     model_to_ft_name = ft_cfg.get("model_ft_name", None)
+    # The number of inter-session base models equals the number of LOSO folds,
+    # i.e. the number of sessions (one held-out session per fold).
+    expected_num = len(csv_summary) if csv_summary is not None else 3
     ft_models_in_folder = check_base_models_exist(
         model_base_folder=model_base_folder,
         model_to_ft_name=model_to_ft_name,
-        expected_in_dir={"base_models_prefix": "leave_one_session_out_fold", "expected_num": 3},
-    )
+        expected_in_dir={"base_models_prefix": "leave_one_session_out_fold", "expected_num": expected_num},)
 
     # FT output root (separate from base inter-session folder)
     ft_root = _ft_output_root(
@@ -261,24 +292,32 @@ def run_ft_for(
             new_model_save_path = model_ft_base_folder / f"fold_{fold_id}_ft_{batch_id}.pt"
 
             df_batch = df_test_session[df_test_session["batch_id"] == batch_id]
+            df_batch_base = base_window_rows(df_batch)
 
             if base_cfg_used["experiment"].get("include_rest", False):
-                min_samples = df_batch["Label_int"].value_counts().min()
-                idx_rest = df_batch[df_batch["Label_str"] == "rest"].index.values
+                min_samples = df_batch_base["Label_int"].value_counts().min()
+                idx_rest = df_batch_base[df_batch_base["Label_str"] == "rest"].index.values
                 index_rest_ds = (
-                    df_batch[df_batch["Label_str"] == "rest"]
+                    df_batch_base[df_batch_base["Label_str"] == "rest"]
                     .sample(n=min_samples, random_state=base_cfg_used["experiment"]["seed"])
                     .index.values
                 )
                 idx_to_drop = np.setdiff1d(idx_rest, index_rest_ds)
-                df_batch = df_batch.drop(index=idx_to_drop)
+                df_batch_base = df_batch_base.drop(index=idx_to_drop.tolist())
 
-            df_train, df_val = train_test_split(
-                df_batch,
+            df_train_base, df_val = train_test_split(
+                df_batch_base,
                 test_size=0.3,
                 shuffle=True,
-                random_state=42,
-                stratify=df_batch["Label_int"],
+                random_state=int(base_cfg_used.get("experiment", {}).get("seed", 0)),
+                stratify=df_batch_base["Label_int"],
+            )
+
+            df_train = training_rows_with_augmentation(
+                df_batch,
+                df_train_base,
+                mode=base_cfg.get("experiment", {}).get("augmentation_train_mode", "augmented_size"),
+                seed=int(base_cfg.get("experiment", {}).get("seed", 0)),
             )
 
             model_fine_tuner = Model_Fine_Tuner(
@@ -292,8 +331,13 @@ def run_ft_for(
             )
 
             metrics_before = model_fine_tuner.test_zero_shot_acc()
-            batch_loader = model_fine_tuner.model_master.trainer_manager.test_loader
-            metrics_without_ft, _, _ = evaluate_model(model_intersess, batch_loader)
+            if metrics_before is None:
+                raise ValueError("Zero-shot metrics are missing.")
+            batch_loader = model_fine_tuner.model_master.trainer_manager.test_loader # type: ignore
+            strategy = model_fine_tuner.model_master.trainer_manager.strategy # type: ignore
+            metrics_without_ft, _, _ = evaluate_model(model_intersess, batch_loader, strategy)
+            if metrics_without_ft is None:
+                raise ValueError("Metrics without FT are missing.")
 
             row = {
                 "subject": sub,
@@ -324,6 +368,11 @@ def run_ft_for(
     return model_ft_base_folder
 
 
+# ---------------------------------------------------------------------------
+# Trainer wrapper
+# ---------------------------------------------------------------------------
+
+
 class FineTuning_Model_Trainer:
     """Importable trainer compatible with scripts/30_run_experiments.py."""
 
@@ -341,6 +390,11 @@ class FineTuning_Model_Trainer:
         sub = self.base_cfg["data"]["subject_id"]
         cond = self.base_cfg["condition"]
         return run_ft_for(sub, cond, self.base_cfg, self.model_cfg, self.ft_cfg)
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 
 def main():

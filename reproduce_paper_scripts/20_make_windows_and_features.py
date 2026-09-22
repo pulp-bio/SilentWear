@@ -2,6 +2,7 @@
 
 
 # Copyright ETH Zurich 2026
+# Modified by: Carola Bonamico; Date: 10/09/2026
 # Licensed under Apache v2.0 see LICENSE for details.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -49,6 +50,7 @@ from utils.II_feature_extraction.win_feature_extraction_main import (
 DEFAULT_WINDOWS_S = [0.4, 0.6, 0.8, 1.0, 1.2, 1.4]
 DEFAULT_SUBJECTS = ["S01", "S02", "S03", "S04"]
 DEFAULT_CONDITIONS = ["silent", "vocalized"]
+LABEL_MODE_CHOICES = ["word", "sentence"]
 
 
 def _parse_bool(s: str) -> bool:
@@ -99,6 +101,12 @@ def main() -> None:
         default=None,
         help="Override manual feature extraction: true/false. If omitted, uses YAML value.",
     )
+    ap.add_argument(
+        "--label_mode",
+        choices=LABEL_MODE_CHOICES,
+        default=None,
+        help="Override label mapping used when creating the HDF5 outputs. If omitted, uses YAML value.",
+    )
 
     args = ap.parse_args()
 
@@ -106,8 +114,6 @@ def main() -> None:
         raise FileNotFoundError(f"Config not found: {args.config}")
     if not args.data_dir.exists():
         raise FileNotFoundError(f"data_dir not found: {args.data_dir}")
-
-    cfg_template = yaml.safe_load(args.config.read_text())
 
     manual_features_override = None
     if args.manual_features is not None:
@@ -124,9 +130,6 @@ def main() -> None:
                 cfg["data"]["data_directory"] = str(args.data_dir)
                 cfg["data"]["subject_id"] = str(sub)
 
-                # Some pipelines keep condition in config; set if present/expected
-                cfg["condition"] = str(cond)
-
                 cfg.setdefault("window", {})
                 cfg["window"]["window_size_s"] = float(window_s)
 
@@ -135,6 +138,9 @@ def main() -> None:
                     cfg["feature_extraction"]["manual_feature_extraction"] = bool(
                         manual_features_override
                     )
+
+                if args.label_mode is not None:
+                    cfg["label_mode"] = args.label_mode
 
                 print("\n" + "=" * 80)
                 print(f"[WINDOWING] subject={sub} | condition={cond} | window_s={window_s}")
@@ -145,11 +151,13 @@ def main() -> None:
                     tmp_cfg.write_text(yaml.safe_dump(cfg, sort_keys=False))
 
                     subject_cfg = SubjectConfig(tmp_cfg)
-                    extractor = Global_Windower_and_Feature_Extractor(subject_cfg)
+                    extractor = Global_Windower_and_Feature_Extractor(
+                        subject_cfg, conditions=[cond]
+                    )
                     print("extractor initialized")
                     extractor.main()
 
-                    print("done!")
+                print("done!")
 
 
 if __name__ == "__main__":

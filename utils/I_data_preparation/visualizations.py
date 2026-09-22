@@ -1,4 +1,5 @@
 # Copyright ETH Zurich 2026
+# Modified by: Carola Bonamico; Date: 10/09/2026
 # Licensed under Apache v2.0 see LICENSE for details.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -79,7 +80,7 @@ def plot_emg_color_by_label(
     # --- assign colors (categorical) ---
     cmap = plt.get_cmap("tab20")
     colors = {lab: cmap(i % cmap.N) for i, lab in enumerate(uniq_labels)}
-    colors["rest"] = (0.8, 0.8, 0.8)  # force rest light grey (even if absent it's harmless)
+    colors["rest"] = (0.8, 0.8, 0.8, 1.0)
 
     # --- figure layout: N subplots ---
     fig, axes = plt.subplots(n_ch, 1, sharex=True, figsize=figsize, constrained_layout=True)
@@ -144,7 +145,9 @@ def plot_emg_color_by_label(
     # full-screen (best effort)
     try:
         mng = plt.get_current_fig_manager()
-        mng.window.showMaximized()
+        window = getattr(mng, "window", None) 
+        if window is not None and hasattr(window, "showMaximized"):
+            window.showMaximized()
     except Exception:
         pass
     if save_path:

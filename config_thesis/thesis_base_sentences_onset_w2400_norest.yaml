@@ -1,0 +1,51 @@
+# Sentences, trigger-free windows, 2.4 s, 20 classes
+#
+# Base configuration pinned for the thesis reproduction scripts
+# (scripts/reproduce_thesis_results/). It differs from the general-purpose
+# configs of this folder in one respect only: every field which determines
+# WHICH artefacts a run produces is fixed here rather than left to a command
+# line flag, so that a run cannot silently be executed at the wrong window
+# length or with the wrong label set.
+#
+#   window          2.4 s  -> artefacts under w2400ms
+#   label set       20 sentence classes; the onset extraction emits no rest windows
+#   normalization   none
+#
+# The model configuration is supplied separately, from
+# config_thesis/models_configs/.
+data:
+  data_directory: data_sentences                                        # Overridden by --data_dir
+  models_main_directory: ./artifacts_thesis                             # Overridden by --artifacts_dir
+  subject_id: S01 S02 S03 S04 S05 S06 S07                               # Overridden by --subjects
+paths:
+  processed: raw_and_processed
+  win_and_feats: wins_and_features_onset
+condition: silent   # Overridden by --conditions (per subject/condition loop)
+window:
+  window_size_s: 2.4
+channel_order:
+  - 0
+  - 1
+  - 2
+  - 5
+  - 3
+  - 4
+  - 7
+  - 6
+  - 8
+  - 15
+  - 9
+  - 14
+  - 10
+  - 13
+
+experiment:
+  seed: 42
+  include_rest: false
+  augmentation_train_mode: original_size
+  label_mode: sentence
+  data_normalization: false
+cv:
+  mode: stratified_session_label
+  n_splits: 5
+  val_size: 0.2

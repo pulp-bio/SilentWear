@@ -1,0 +1,37 @@
+# BiLSTM | mel cepstrum, 64 filters / 40 coefficients | cross-entropy | words
+# One pooled decision per window; no decoding stage.
+model:
+  kind: dl
+  name: speechnet
+  kwargs:
+    domain: "mfcc"
+    spec_augment: true        # frequency/time masking during training
+    p_dropout: 0.5
+    global_pool: avg
+    use_bilstm: true
+    rnn_hidden_dim: 128
+
+    mfcc_cfg:
+      sample_rate: 500
+      n_mfcc: 40              # final freq height
+      melkwargs:
+        n_fft: 128           # 65 spectrogram bins (>= n_mels, no empty Mel filters)
+        hop_length: 5         # frames = floor(T/hop) + 1  (T=1000 -> 201)
+        n_mels: 64
+
+    # 40 x 201 -> freq 40->20->10->5->2 , time 201->100->50->50->50 (T'=50). ch_last=128.
+    blocks_config:
+      - { out_channels: 32,  kernel: [3, 3], pool: [2, 2] }
+      - { out_channels: 64,  kernel: [3, 3], pool: [2, 2] }
+      - { out_channels: 128, kernel: [3, 3], pool: [2, 1] }
+      - { out_channels: 128, kernel: [3, 3], pool: [2, 1] }
+
+    train_cfg:
+      loss_name: cross_entropy
+      num_epochs: 150
+      warmup_epochs: 10
+      grad_clip_norm: 1.0
+      optimizer_cfg: { "name": "adamw", "lr": 1e-3 }
+      scheduler: { name: ReduceLROnPlateau, mode: min, factor: 0.1, patience: 12 }
+      early_stop_patience: 30
+      weight_decay: 1e-4

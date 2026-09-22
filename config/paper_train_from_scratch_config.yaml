@@ -8,6 +8,12 @@ model_name_id: "w1400ms"
 fs_lr: 1.0e-3
 num_fs_epochs: 100
 
+# Optional CTC-specific overrides (recommended for emg_transformer + CTC)
+fs_lr_ctc: 1.0e-3
+num_fs_epochs_ctc: 100
+
 # If for the first batch you want to use different settings
 lr_first_train: 1.0e-3
 num_epochs_first_train: 100
+lr_first_train_ctc: 1.0e-3
+num_epochs_first_train_ctc: 100

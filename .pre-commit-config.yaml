@@ -34,16 +34,6 @@ repos:
         files: "\\.(md|yaml|yml|json)$"
         stages: [pre-commit]
 
-  - repo: https://github.com/Lucas-C/pre-commit-hooks
-    rev: v1.5.4
-    hooks:
-      - id: insert-license
-        name: Insert Apache-2.0 License Header
-        files: "\\.py$"
-        args:
-          - "--license-file"
-          - "LICENSE_HEADER.txt"
-
 exclude: |
   ^artifacts/
   ^data/

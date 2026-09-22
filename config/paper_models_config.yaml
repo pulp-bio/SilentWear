@@ -29,6 +29,6 @@ experiment:
   seed: 42
   include_rest: true
 cv:
-  global_cv_mode: leave_one_batch_out
+  mode: leave_one_batch_out
   n_splits: 5
   val_size: 0.2

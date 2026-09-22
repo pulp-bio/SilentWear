@@ -1,0 +1,16 @@
+rest r e s t |
+up u p |
+down d o w n |
+left l e f t |
+right r i g h t |
+forward f o r w a r d |
+backward b a c k w a r d |
+start s t a r t |
+stop s t o p |
+advance a d v a n c e |
+reverse r e v e r s e |
+rotate r o t a t e |
+halt h a l t |
+begin b e g i n |
+grab g r a b |
+place p l a c e |

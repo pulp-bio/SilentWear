@@ -1,0 +1,17 @@
+data:
+  data_directory: data_sentences/data_sentences_5_subjects_6_sessions
+  subject_id: S05   # Template default; overridden by 20_make_windows_and_features.py --subjects
+paths:
+  processed: raw_and_processed
+  win_and_feats: wins_and_features
+window:
+  window_size_s: 2.0
+label_mode: sentence
+data_augmentation:
+  mode: disabled    # use 'disabled' for no augmentation
+  stride_ms: 10
+  num_strides: 2
+feature_extraction:
+  manual_feature_extraction: true
+  num_subwindows: 7
+save_wins_and_feats: true

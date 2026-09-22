@@ -1,53 +1,71 @@
-# SilentWear: an Ultra-Low Power Wearable System for EMG-based Silent Speech Recognition
+# From Biosignals to Words: Exploiting Novel Deep Learning Architectures for Speech Understanding
 
-_Silent-Wear_ is an end-to-end, fully open-source wearable system for _vocalized_ and _silent_ speech detection from surface electromyography (sEMG) data.
+This repository is a fork of [pulp-bio/SilentWear](https://github.com/pulp-bio/SilentWear),
+extended for the master's thesis *From Biosignals to Words: Exploiting Novel Deep
+Learning Architectures for Speech Understanding* (ETH Zurich, 2026).
+
+Fork: <https://github.com/carolabonamico/SilentWear>
 
 <table align="center">
-<tr>
-  <td align="center">
-<img src="extras/abstract_fig_git.png" height="350"><br>
-</td>
-<td align="center">
-<img src="extras/signals.png" height="350"><br>
-</td>
-</tr>
+  <tr>
+    <td align="center">
+      <img src="extras/setup.png"><br>
+    </td>
+  </tr>
 </table>
 
-## 👨‍💻 Contributors
+## Contributors
 
-_Silent-Wear_ has been developed at _ETH Zürich_, by the [PULP-Bio](https://iis-projects.ee.ethz.ch/index.php?title=Biomedical_Circuits,_Systems,_and_Applications) team:
+The SilentWear system was developed at ETH Zurich by the
+[PULP-Bio](https://iis-projects.ee.ethz.ch/index.php?title=Biomedical_Circuits,_Systems,_and_Applications)
+team. The contributors are listed in the
+[original repository](https://github.com/pulp-bio/SilentWear).
 
-- [Giusy Spacone](https://scholar.google.com/citations?user=dGE8uMEAAAAJ&hl=en): Conceptualization, Experimental Design, Development
-- [Sebastian Frey](https://scholar.google.com/citations?user=7jhiqz4AAAAJ&hl=en): PCB design, Firmware, Documentation
-- Fiona Meier: Hardware Development
-- [Giovanni Pollo](https://scholar.google.com/citations?hl=it&user=znSV3doAAAAJ&view_op=list_works&sortby=pubdate): Experimental Desing, Data Collection, Documentation
+The work in this fork was carried out by **Carola Bonamico** as a contributor to the project. It covers the sentence-level corpus acquisition with the paired EMG and EEG setup, the CTC training and decoding path, the sequence stages compared in the thesis, the evaluation protocols and metrics, and the ablation studies.
 
-- Prof. [Luca Benini](https://scholar.google.com/citations?user=8riq3sYAAAAJ&hl=en): Supervision, Conceptualization
-- Dr. [Andrea Cossettini](https://scholar.google.com/citations?user=d8O91jIAAAAJ&hl=en): Supervision, Project administration
+## System Components
 
-## ⚙️ General Overview of the System
+**BioGAP-Ultra**: ultra-low-power acquisition platform for biopotentials. 
+Hardware and firmware: <https://github.com/pulp-bio/BioGAP>
 
-_Silent-Wear_ relies on the following building blocks:
+**SilentWear neckband**: 14-channel differential dry-electrode EMG neckband.
+System overview: <https://ieeexplore.ieee.org/abstract/document/11330464>
+(arXiv: <https://arxiv.org/abs/2509.21964>)
 
-🔧 **BIOGAP-Ultra** — an ultra-low-power acquisition system for biopotential acquisition.
-Hardware and firmware: https://github.com/pulp-bio/BioGAP
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="extras/emg_neckband_unit.png" height="200"><br>
+    </td>
+  </tr>
+</table>
 
-📿 **Silent-Wear neckband** — a 14-channel differential EMG neckband.
-System overview: https://ieeexplore.ieee.org/abstract/document/11330464 (arXiv: https://arxiv.org/abs/2509.21964)
+**EEG headband**: 16-channel dry-electrode EEG headband.
+System overview: <https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=11346484>
+(arXiv: <https://arxiv.org/abs/2508.13728>)
 
-🖥️ **BIOGUI** — a modular PySide6 GUI for acquiring and visualizing biosignals from multiple sources, and for managing data collection.
-Version used in this work: https://github.com/pulp-bio/biogui/tree/sensors_speech
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="extras/eeg_headband_unit.png" height="200"><br>
+    </td>
+  </tr>
+</table>
 
-📝 **This repository**
-This repository contains the source code used to preprocess EMG data and develop models that predict _8 HMI_ commands from _vocalized_ and _silent_ EMG, in line with the associated paper (arXiv: coming soon).
+**BioGUI**: Qt application for acquisition, utterance presentation and labelling.
+The version used in this work is the fork <https://github.com/carolabonamico/biogui>
 
-Specifically, it allows you to:
+## What This Fork Adds
 
-1. **Preprocess EMG data** and prepare it for model training using our publicly available dataset: https://huggingface.co/datasets/PulpBio/SilentWear
-2. **Replicate the results** reported in the paper (arXiv: coming soon). See details below.
-3. **Extend the pipeline** with your own models (instructions below).
+* A corpus of fifteen isolated words and twenty full sentences both plus a rest class, recorded from seven participants over six sessions in vocalized and silent conditions.
+* A CTC training and decoding path over character tokens, with greedy best-path and prefix beam search.
+* Two sequence stages compared at equal number of parameters, namely a two-layer BiLSTM and a Transformer encoder, on top of the shared convolutional backbone, which may also be run on its own.
+* Two tasks, namely closed-set classification against the lexicon and free-character continuous recognition.
+* Configurations of the models input domain (time, STFT, MFCC).
+* Ablations on the number of recorded sessions and on the sliding-window augmentation.
+* Pooled multi-subject models.
 
-## 🛠 Get Started: Environment Setup
+## Environment Setup
 
 Start by creating a dedicated virtual environment:
 
@@ -73,227 +91,230 @@ cd SilentWear
 pip install -r requirements.txt
 ```
 
-## 🗃️ Download the Data
+## Data
 
-You can download the data used in this work from: https://huggingface.co/datasets/PulpBio/SilentWear
+The word-level corpus published with the paper is available at <https://huggingface.co/datasets/PulpBio/SilentWear> and is used in the thesis to reproduce the SpeechNet baseline. The corpus recorded for the thesis is not yet public.
 
-The code expects the Hugging Face release layout:
-
-```text
-SilentWear/
-├── data_raw_and_filt/
-└── wins_and_features/
-```
-
-Further description on the content of the dataset are available at: https://huggingface.co/datasets/PulpBio/SilentWear/blob/main/README.md
-Before running the experiments, updates the data paths in:
+Data paths are set in the configuration files of `config_thesis/`, which is the configuration folder of the thesis.
 
 ```bash
-config/paper_models_config.yaml
-config/create_windows.yaml
+# .bio recordings -> filtered, labeled HDF5 tables
+python utils/I_data_preparation/data_preparation.py --data_dir <RAW_DIR>
+
+# HDF5 tables -> fixed-length windows (and, optionally, handcrafted features)
+python reproduce_paper_scripts/20_make_windows_and_features.py \
+  --config config_thesis/create_windows_sentences.yaml \
+  --data_dir <RAW_DIR> --windows_s 2.0 --label_mode sentence
 ```
 
-If you want to collect your own data using the [BioGUI](https://github.com/pulp-bio/biogui/tree/sensors_speech), see **Optional: raw data preprocessing** below.
+The window length, the label mode and the sliding-window augmentation are declared in `config_thesis/create_windows*.yaml`.
 
-## 📊 Reproduce Paper Results
+### Where the data has to live
 
-The `reproduce_paper_scripts` folder allows to reproduce the results of the paper: (arXiv: coming soon) . </br>
+The reproduction scripts of `scripts/reproduce_thesis/` read three corpus roots, each with a default name and an environment variable that overrides it. The defaults are declared in `scripts/reproduce_thesis/common.sh`.
 
-### 1️⃣: Prepare EMG-windows and (optionally) features
+| root | override | holds |
+|---|---|---|
+| `data_sentences/` | `DATA_SENTENCES` | The sentence corpus of the thesis: 7 participants, 6 sessions, 20 sentences |
+| `data_words/` | `DATA_WORDS` | The word corpus of the thesis: 15 command words plus rest |
+| — | `DATA_WORDS_PUBLISHED` | The published SilentWear corpus: 8 command words plus rest |
+
+Inside a root the layout is fixed, and the folder names are the ones the configurations select through `paths.processed` and `paths.win_and_feats`:
+
+```
+<root>/
+  raw/<subject>/<condition>/*.bio                     # optional, the unfiltered recordings
+  raw_and_processed/<subject>/<condition>/*.h5        # filtered, labelled tables
+  wins_and_features/<subject>/<condition>/WIN_<ms>/   # trigger-aligned windows, one folder per window length
+  wins_and_features_onset/<subject>/<condition>/WIN_<ms>/   # trigger-free windows, sentences only
+```
+
+## Aligning the EMG and EEG Recordings
+
+The two BioGAP-Ultra units write independent `.bio` files, so a session is a pair of recordings that has to be aligned. The scripts of `utils/V_data_alignment/` align the pair and then measure the delay that is left. `inter_file_alignment.py` first repairs each file on its own and then maps the second file onto the first
+through the trigger sequence the two share.
 
 ```bash
-cd reproduce_paper_scripts
-python 20_make_windows_and_features.py --data_dir ./path_to_your_data
+python utils/V_data_alignment/inter_file_alignment.py \
+  emg_mic_<N>_<TS>.bio eeg_mic_<N>_<TS>.bio <OUT_DIR> --debug
 ```
 
-This script is responsible to:
-
-- Reading EMG recordings (saved as .h5 files)
-
-- Generates time windows with user-selectable lengths
-
-- (Optionally) extracting time-domain and frequency-domain features for classical ML models
-
-### 2️⃣: Run Experiments
-
-In our work, we conduct four experiments:
-
-#### 1. Global Evaluation Setting
-
-<p align="left">
-  <img src="extras/global.gif" width="500">
-</p>
-
-Train **Random Forest** models:
+`compute_peak_delay.py` measures the residual delay on a periodic stimulus recorded by both boards and by the microphone of each. It detects the onsets of every available signal by high-pass filtering, rectification and thresholding, at most one onset per period, clusters the onsets closer than half a period into a single event, and writes the delays with their mean and standard deviation to a CSV.
 
 ```bash
-python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/random_forest_config.yaml --data_dir ./data --artifacts_dir ./artifacts --experiment global
+python utils/V_data_alignment/compute_peak_delay.py \
+  <OUT_DIR>/emg_mic_<N>_<TS>_inter_aligned.bio \
+  <OUT_DIR>/eeg_mic_<N>_<TS>_inter_aligned.bio \
+  --output-dir utils/V_data_alignment/results/b2
 ```
 
-Train **SpeechNet** models:
+The same command runs on the raw files, and compares the CSVs is what shows the effect of the alignment. The intra-file repair and the packet-loss report also run on their own:
 
 ```bash
-python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir ./data --artifacts_dir ./artifacts --experiment global
+python utils/V_data_alignment/align_bio_signals.py <FILE>.bio <OUT_DIR> --debug
+python utils/V_data_alignment/check_packet_loss.py <FILE>.bio
 ```
 
-#### Inter-Session Evaluation Setting
+## Running the Experiments
 
-<p align="left">
-  <img src="extras/inter_session.gif" width="500">
-</p>
+Every run composes a **base** configuration, which contains the corpus, the window length, the label set and the cross-validation scheme, with a **model** configuration, which explicits the architecture, the input domain and the objective.
+The base configurations used in the thesis are the `config_thesis/thesis_base_*.yaml` files, and the model configurations live in `config_thesis/models_configs/`, named `<corpus>_<domain>_<objective>_<sequence>[_<task>_<decoder>].yaml`. See `config_thesis/README.md` for the full map from configuration to result.
 
-Train **Random Forest** models:
+The scripts under `scripts/reproduce_thesis/` wrap the commands below, one per step of the chain, and `run_all.sh` executes them in order. The folder `single/` holds one script per experiment unit, for running them separately. The commands are given here directly so that a single experiment can be run without the wrappers.
+
+### Global and inter-session protocols
+
+The `--experiment` flag selects the protocol. `global` is five-fold stratified cross-validation over the whole corpus of a participant, `inter_session` is leave-one-session-out over the recording sessions.
+
+BiLSTM, STFT input representation, CTC, sentence classification:
 
 ```bash
-python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/random_forest_config.yaml --data_dir ./data --artifacts_dir artifacts --experiment inter_session --inter_session_windows_s 1.4
+python reproduce_paper_scripts/30_run_experiments.py \
+  --base_config config_thesis/thesis_base_sentences_w2000_rest.yaml \
+  --model_config config_thesis/models_configs/sentences_stft_ctc_bilstm_classification_greedy.yaml \
+  --data_dir <DATA_DIR> --artifacts_dir artifacts_sentences \
+  --experiment global --subjects S01 S02 S03 S04 S05 S06 S07 \
+  --conditions silent vocalized
 ```
 
-Train **SpeechNet** models:
+Transformer sequence stage, same protocol:
 
 ```bash
-python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir ./data --artifacts_dir artifacts --experiment inter_session
+python reproduce_paper_scripts/30_run_experiments.py \
+  --base_config config_thesis/thesis_base_sentences_w2000_rest.yaml \
+  --model_config config_thesis/models_configs/sentences_stft_ctc_transformer_classification_greedy.yaml \
+  --data_dir <DATA_DIR> --artifacts_dir artifacts_sentences \
+  --experiment inter_session
 ```
 
-Note: this will run by default all the ablations on the window size. Window sizes: [0.4, 0.6, 0.8, 1.0, 1.2, 1.4].
-
-You can pass a single float value to `inter_session_windows_s` if you want to train only on one specific window size.
-
-#### Training From Scratch
-
-<p align="left">
-  <img src="extras/from_scratch.gif" width="500">
-</p>
+The three input domains are selected by the model configuration alone. The matrix `<corpus>_<domain>_<objective>_<sequence>.yaml` covers {words, sentences} × {time, stft, mfcc} × {cross-entropy, CTC} × {none, BiLSTM, transformer}, so a domain comparison is three runs differing in one field:
 
 ```bash
-python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir ./data --artifacts_dir artifacts --experiment train_from_scratch --tfs_config config/paper_train_from_scratch_config.yaml --tfs_windows_s 1.4
+for DOMAIN in time stft mfcc_b64_q40; do
+  python reproduce_paper_scripts/30_run_experiments.py \
+    --base_config config_thesis/thesis_base_sentences_w2000_rest.yaml \
+    --model_config config_thesis/models_configs/sentences_${DOMAIN}_ctc_bilstm_classification_greedy.yaml \
+    --data_dir <DATA_DIR> --artifacts_dir artifacts_domains \
+    --experiment global
+done
 ```
 
-Adjust `tfs_windows_s` to select a different window size.
+Continuous recognition is the same run with the decoding key switched from `lexicon` to `recognition` in the model configuration, which widens the head to the English alphabet. The `*_recognition_*.yaml` files of `config_thesis/models_configs/` are those variants.
 
-#### Inter-Session Fine Tuning
+### Prefix beam search sweep
 
-<p align="left">
-  <img src="extras/incremental_ft.gif" width="500">
-</p>
+The sweep re-decodes the frame log-probabilities saved beside every fold checkpoint. Train once with the dump enabled, then sweep:
 
 ```bash
-python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir ./data --artifacts_dir artifacts --experiment inter_session_ft --ft_config config/paper_ft_config.yaml --ft_windows_s 1.4
+python offline_experiments/VII_beam_sweep.py \
+  --dumps artifacts_beam_sweep/<RUN>/models/global \
+  --lexicon lexicon/silentwear_lexicon_sentences.txt \
+  --beam_widths 1 5 10 25 \
+  --temperatures 1.0 1.3 1.6 2.0 \
+  --blank_penalties 0.0 1.0 2.0 4.0 \
+  --length_bonuses 0.0 0.5 1.0 2.0 \
+  --out artifacts_beam_sweep/<RUN>/beam_sweep_global.csv
 ```
 
-Adjust `ft_windows_s` to select a different window size.
+The grid is scoped to one protocol at a time so that the global and inter-session savings are never pooled. The selected operating point is written per condition to `tables_beam/`, and the greedy reference is recomputed from the same savings.
 
-### 3️⃣: Generate results
+### Ablation on the number of recorded sessions
 
-Run these commands to generate the results
-
-#### Global / Inter Session Experiments Results
-
-Random Forest:
+This ablation retrains on the first 1 to 6 sessions of each participant. The inter-session protocol is defined from two sessions onwards.
 
 ```bash
-python utils/III_results_analysis/I_global_intersession_analysis.py --artifacts_dir ./artifacts --experiment global --model_name random_forest --model_name_id w1400ms
+python reproduce_paper_scripts/30_run_experiments.py \
+  --base_config config_thesis/thesis_base_words_w1400_rest.yaml \
+  --model_config config_thesis/models_configs/speechnet_baseline_words_ce.yaml \
+  --data_dir <DATA_WORDS> --artifacts_dir artifacts_ablation/session_count \
+  --experiment session_count_ablation \
+  --subjects S01 S03 S04 --conditions silent vocalized \
+  --session_windows_s 1.4 --min_sessions 1
 ```
 
-SpeechNet:
+### Ablation on the sliding-window augmentation
+
+Two sweeps vary one parameter at a time against an un-augmented baseline, the stride and the number of shifts per side. Both are declared in the windowing configuration, so each point of the sweep is one windowed dataset and one run:
 
 ```bash
-  python utils/III_results_analysis/I_global_intersession_analysis.py --artifacts_dir ./artifacts --experiment global --model_name speechnet --model_name_id w1400ms --plot_confusion_matrix --transparent
+# Set data_augmentation.stride_ms to 10, 20, 50 or 100 in the windowing
+# configuration, at num_strides: 2, before each point of the sweep.
+python reproduce_paper_scripts/20_make_windows_and_features.py \
+  --config config_thesis/create_windows_words.yaml \
+  --data_dir <DATA_WORDS> --windows_s 1.4 --label_mode word
+
+python reproduce_paper_scripts/30_run_experiments.py \
+  --base_config config_thesis/thesis_base_words_w1400_rest.yaml \
+  --model_config config_thesis/models_configs/speechnet_baseline_words_ce.yaml \
+  --data_dir <DATA_WORDS> --artifacts_dir artifacts_ablation/stride50_n2 \
+  --experiment session_count_ablation --subjects S01 S03 S04 \
+  --session_windows_s 1.4 --min_sessions 1
 ```
 
-Switch experiment between global and inter_session.
+The shift-count sweep is the same with `num_strides` in {2, 5, 10} at a 10 ms stride. Setting the augmentation modality to `original_size` in the windowing configuration resamples the augmented pool back to the cardinality of the base split.
 
-#### ITR on SpeechNet
+The shell wrappers for both ablations are `scripts/reproduce_thesis/single/60_ablation_session_count.sh` and `scripts/reproduce_thesis/single/60_ablation_augmentation.sh`.
+
+### Pooled multi-subject models
+
+One model is trained on all participants at once, with a per-subject z-score or with a per-subject min-max scaling.
+The three base configurations differ in that field alone, and the runs are `60_pooled_none.sh`, `60_pooled_zscore.sh` and `60_pooled_minmax.sh` under `scripts/reproduce_thesis/single/`.
+
+## Generate results
+
+Per-fold metrics are written to a `cv_summary.csv` beside every set of checkpoints, and every scalar of the metrics dictionary becomes a column. The aggregate tables land under `tables/`, and the folders of `artifacts_thesis/` follow the scripts of
+`scripts/reproduce_thesis/`:
+
+| Folder | Content description |
+|---|---|
+| `01_gate_baseline_published/` | SpeechNet reproduced on the published corpus, CE and CTC, plus the STFT and BiLSTM upgrade |
+| `02_gate_baseline_new_corpus/` | Same models on the word subset of the thesis |
+| `10_axis1_input_domain/` | Four input domains × two sequence stages, words and sentences, CE |
+| `11_axis1_ctc_domains/` | Time and mel rows of the same table under CTC |
+| `20_axis2_objective/` | STFT rows under CTC, words and sentences |
+| `30_axis3_sequence_stage/` | Backbone alone, BiLSTM and Transformer, both tasks, plus the mel counterparts |
+| `40_axis4_decoder_sweep/` | Beam sweep, both tasks and both architectures |
+| `50_axis5_trigger_free/` | Models retrained on onset-anchored windows | — |
+| `60_ablations/` | Enrolment sessions, sliding-window augmentation, pooled models |
+| `embeddings/` | Encoder activations projections ||
+
+## Analysing the Results
+
+The analysis scripts detect the run mode from the columns of `cv_summary.csv`, `balanced_accuracy` for classification and `wer` for recognition.
 
 ```bash
-  python utils/III_results_analysis/II_infotransrate.py --artifacts_dir ./artifacts --experiment inter_session --model_name speechnet
+# per-subject and pooled tables, plus confusion matrices
+python utils/III_results_analysis/I_global_intersession_analysis.py \
+  --artifacts_dir artifacts_sentences --experiment global \
+  --model_name speechnet_transformer --model_name_id w2000ms \
+  --plot_confusion_matrix
+
+# the sweep-selected beam configuration, per condition and protocol
+python utils/III_results_analysis/VII_beam_sweep_tables.py \
+  --artifacts_dir artifacts_beam_sweep/<RUN> --experiment global \
+  --model_name speechnet_transformer --model_name_id w2000ms
+
+# ablation figures
+python utils/IV_plots/plot_ablation_results.py \
+  --artifacts_root artifacts_ablation --out_dir figures
+
+# the 21-class sentence results, greedy against the selected beam
+python utils/III_results_analysis/aggregate_rest_sentence_results.py
+
+# the same table for the 20-class runs, or at another window
+python utils/III_results_analysis/aggregate_rest_sentence_results.py \
+  --root artifacts_beam_sweep_no_rest --window w2000ms
 ```
 
-#### Fine-Tuning + From -Scratch Evaluations
+The trigger-free detector is scored on its own and against the trigger by `utils/I_data_preparation/onset_detection_report.py`.
 
-```bash
-python utils/III_results_analysis/III_ft_results.py --artifacts_dir ./artifacts --model_name speechnet --model_base_id w1400ms --inter_session_model_id model_1 --ft_id ft_config_0 --bs_id bs_config_0
-```
+## Extending the Pipeline
 
-Note:
-
-If you ran multiple fine tuning or baseline rounds for the same window size, adjust ft_id and bs_id accordingly.
-If you ran the inter session models multiple times, change the inter_session_model_id
-
----
-
-Note: Small performance variations may occur due to randomness but remain within the reported standard deviation.
-
-## Run minimal experiments.
-
-The `reproduce_paper_scripts` folder is built around the standalone scripts contained in:
-
-- `utils/II_feature_extraction` and `utils/III_results_analysis`
-
-- `offline_experiments`
-
-The scripts in these folder can be ran independently.
-
-They can be used as a starting point to **test your own model**.
-
-## Extras: raw data preprocessing (only if you collected new data)
-
-If you recorded new data using the [BioGUI](https://github.com/pulp-bio/biogui/tree/sensors_speech), you can convert your `.bio` recordings to `.h5` using:
-
-```text
-utils/I_data_preparation/data_preparation.py
-```
-
-Then run windowing/feature extraction as above.
-
----
-
-## 🤝 Contributing
-
-_Silent-Wear_ aims to foster a community-driven effort toward advancing EMG-based Human–Machine Interfaces (HMI).
-
-We strongly encourage contributions from researchers, developers, and practitioners.
-
-You can contribute in several ways:
-
----
-
-### 📊 1. Collect and Share Your Own Data
-
-You can replicate the data collection protocol using the open-source **BIOGUI** platform:
-
-https://github.com/pulp-bio/biogui/tree/sensors_speech
-
-We welcome:
-
-- New subjects
-- Additional commands
-- Different recording conditions
-- Cross-lingual or multilingual datasets
-
-If you collect new data, please open an issue to discuss integration.
-
-### 🧠 2. Develop and Integrate Your Own Models
-
-To integrate a new model:
-
-1. Add your configuration file under `config/models_configs/`
-2. Implement your model in the `models/` directory
-3. Add your model factory to `models/models_factory.py` file
-4. Submit a pull request with a short description of your approach and results
-
-### 🛠 3. Improve the Pipeline
-
-Contributions are also welcome for:
-
-- Data preprocessing
-- Feature extraction
-- Evaluation protocols
-- Documentation improvements
-- Bug fixes and performance optimizations
+To add a model, place its configuration under `config_thesis/models_configs/`, implement it under `models/cnn_architectures/` and register it in `models/models_factory.py`. Task behaviour, that is the loss and the decoding, is owned by the strategies in `models/strategies.py`.
 
 ## Citation
 
-If you use this work, we strongly encourage you to cite:
+If you use this work, please cite the SilentWear system and the platform it runs on:
 
 ```bibtex
 @article{spacone2026silentwear,
@@ -305,35 +326,27 @@ If you use this work, we strongly encourage you to cite:
 ```
 
 ```bibtex
-@INPROCEEDINGS{meier_wearneck_26,
+@inproceedings{meier_wearneck_26,
   author={Meier, Fiona and Spacone, Giusy and Frey, Sebastian and Benini, Luca and Cossettini, Andrea},
   booktitle={2025 IEEE SENSORS},
   title={A Parallel Ultra-Low Power Silent Speech Interface Based on a Wearable, Fully-Dry EMG Neckband},
   year={2025},
-  volume={},
-  number={},
   pages={1-4},
-  keywords={Wireless communication;Vocabulary;Wireless sensor networks;Accuracy;Low power electronics;Electromyography;Robustness;Decoding;Wearable sensors;Textiles;EMG;wearable;ultra-low power;HMI;speech;silent speech},
   doi={10.1109/SENSORS59705.2025.11330464}}
 ```
 
 ```bibtex
-@ARTICLE{11346484,
+@article{frey_biogapultra_26,
   author={Frey, Sebastian and Spacone, Giusy and Cossettini, Andrea and Guermandi, Marco and Schilk, Philipp and Benini, Luca and Kartsch, Victor},
   journal={IEEE Transactions on Biomedical Circuits and Systems},
   title={BioGAP-Ultra: A Modular Edge-AI Platform for Wearable Multimodal Biosignal Acquisition and Processing},
   year={2026},
-  volume={},
-  number={},
   pages={1-17},
-  keywords={Electrocardiography;Biomedical monitoring;Monitoring;Electromyography;Electroencephalography;Artificial intelligence;Heart rate;Estimation;Temperature measurement;Hardware;biopotential;ExG;photoplethysmogram;Human-Machine Interface;sensor fusion},
   doi={10.1109/TBCAS.2026.3652501}}
 ```
 
-## 📄 License
+## License
 
-This project makes use of the following licenses:
-
-- Apache License 2.0 — see the [LICENSE](LICENSE) file for details.
-
-- Images (`extras/`) are under the the Creative Commons Attribution 4.0 International License - see the [LICENSE_IMG](LICENSE.images) file for details.
+* Apache License 2.0, see [LICENSE](LICENSE).
+* Images under `extras/` are released under the Creative Commons Attribution 4.0
+  International License, see [LICENSE_IMG](LICENSE.images).

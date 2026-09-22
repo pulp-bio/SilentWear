@@ -1,0 +1,65 @@
+# Sentence windows cut at the DETECTED speech onset instead of at the cue.
+#
+# The detector (utils/I_data_preparation/onset_detection.py) never reads the
+# trigger: it decides where the windows go from the EMG alone, the way an online
+# system would. The trigger is consulted afterwards only to attach the sentence
+# text to each detected event.
+#
+# `win_and_feats` deliberately differs from the cue-aligned config so that the
+# two datasets coexist and can be compared A/B with the same window length.
+# Every window length shares this root and is kept apart by its own WIN_<ms>
+# subfolder, so a second extraction at another --windows_s is additive.
+data:
+  data_directory: data_sentences
+  subject_id: S05   # Template default; overridden by 20_make_windows_and_features.py --subjects
+paths:
+  processed: raw_and_processed
+  win_and_feats: wins_and_features_onset
+window:
+  # 2.4 s covers the 95th percentile of utterance durations measured from the
+  # detected onset. It costs rest windows, not speech: a rest window needs a gap
+  # at least as long as itself, and the gaps between utterances are only ~2.8 s.
+  window_size_s: 2.0
+  alignment: onset          # "cue" = historical behaviour, "onset" = trigger-free
+label_mode: sentence
+onset_detection:
+  # Tuned for recall over the 16800 sentences the subjects actually spoke.
+  # Measured yield of each knob, all else fixed (Appendix "Trigger-free
+  # windowing" of the thesis has the full study):
+  #   t_high            2.2 -> 96.5%, 2.5 -> 97.3%, 2.8 -> 97.2%
+  #   min_duration_s    0.25 -> 96.3%, 0.20 -> 96.8%, 0.15 -> 97.3%, 0.10 -> 97.7%
+  #   merge_gap_s       0.30 -> 97.3%, 0.50 -> 90.7%, 0.80 -> 62.0%
+  #   t_low_ratio       0.3 -> 96.6%, 0.4 -> 97.3%, 0.5 -> 97.3%, 0.7 -> 96.8%
+  #   max_backtrack_s   0.0 -> 97.2%, 0.3 -> 97.3% (and 62 ms earlier onset)
+  #   topk              no effect whatsoever (2, 3, 4, 6, 8 all identical)
+  # t_high is a genuine maximum, not a compromise: lowering it produces MORE
+  # events but FEWER sentences, because the extra events are mid-utterance
+  # fragments that get discarded. min_duration_s 0.10 buys 0.4 pp more recall
+  # but multiplies the unmatched events by 2.3, so 0.15 is the operating point.
+  t_high: 2.5
+  t_low_ratio: 0.4
+  min_duration_s: 0.15
+  merge_gap_s: 0.30
+  max_backtrack_s: 0.30
+  topk: 4
+  baseline_window_s: 20.0
+  # Label attribution only, never detection. 0.25 s discarded real speech: 29% of
+  # the events it rejected sit within 0.5 s of a cue and are anticipations or
+  # pre-phonatory activity. Raising it to 0.50 s lifts recall 95.9% -> 97.3%.
+  match_tolerance_s: 0.50
+  # "drop", not "rest": the events that still match no cue box are not all
+  # artefacts, and labelling a real utterance as rest poisons the rest class far
+  # more than the ~1100 extra windows are worth.
+  unmatched: drop
+  # Speech only: no rest windows are emitted at all, so the resulting dataset has
+  # 20 sentence classes and no rest class. Train it with include_rest: false.
+  rest_windows: false
+  rest_windows_per_gap: 1   # only used when rest_windows is true
+data_augmentation:
+  mode: disabled    # use 'disabled' for no augmentation
+  stride_ms: 10
+  num_strides: 2
+feature_extraction:
+  manual_feature_extraction: true
+  num_subwindows: 7
+save_wins_and_feats: true

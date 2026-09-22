@@ -1,0 +1,9 @@
+rest r e s t |
+up u p |
+down d o w n |
+left l e f t |
+right r i g h t |
+forward f o r w a r d |
+backward b a c k w a r d |
+start s t a r t |
+stop s t o p |

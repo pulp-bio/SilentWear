@@ -1,0 +1,53 @@
+# Words, 1.4 s, PUBLISHED SilentWear corpus (8 commands + rest), no normalization
+#
+# Base configuration pinned for the thesis reproduction scripts
+# (scripts/reproduce_thesis_results/). It differs from the general-purpose
+# configs of this folder in one respect only: every field which determines
+# WHICH artefacts a run produces is fixed here rather than left to a command
+# line flag, so that a run cannot silently be executed at the wrong window
+# length or with the wrong label set.
+#
+#   window          1.4 s  -> artefacts under w1400ms
+#   label set       15 words + rest = 16 classes
+#   normalization   none
+#
+# The model configuration is supplied separately, from
+# config_thesis/models_configs/.
+data:
+  data_directory: /baltic/users/ml_datasets/iis_bio_internal_datasets/2026_spacone_speech_classification_hmi   # Overridden by --data_dir
+  models_main_directory: ./artifacts_thesis                             # Overridden by --artifacts_dir
+  subject_id: S01 S02 S03 S04                                           # Overridden by --subjects
+paths:
+  # The published corpus ships its own directory names; they differ from the
+  # ones this thesis uses for its own recordings.
+  processed: data_raw_and_filt
+  win_and_feats: wins_and_feats_final
+condition: silent   # Overridden by --conditions (per subject/condition loop)
+window:
+  window_size_s: 1.4
+channel_order:
+  - 0
+  - 1
+  - 2
+  - 5
+  - 3
+  - 4
+  - 7
+  - 6
+  - 8
+  - 15
+  - 9
+  - 14
+  - 10
+  - 13
+
+experiment:
+  seed: 42
+  include_rest: true
+  augmentation_train_mode: original_size
+  label_mode: word
+  data_normalization: false
+cv:
+  mode: leave_one_batch_out
+  n_splits: 5
+  val_size: 0.2

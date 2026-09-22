@@ -1,0 +1,21 @@
+rest r e s t |
+move forward m o v e f o r w a r d |
+turn left t u r n l e f t |
+turn right t u r n r i g h t |
+stop the mission s t o p t h e m i s s i o n |
+go to the center g o t o t h e c e n t e r |
+move inside m o v e i n s i d e |
+go to the wall g o t o t h e w a l l |
+move backward m o v e b a c k w a r d |
+proceed to the door p r o c e e d t o t h e d o o r |
+back to initial position b a c k t o i n i t i a l p o s i t i o n |
+enter the room e n t e r t h e r o o m |
+proceed two meters p r o c e e d t w o m e t e r s |
+pick up the object p i c k u p t h e o b j e c t |
+put the object down p u t t h e o b j e c t d o w n |
+turn on the light t u r n o n t h e l i g h t |
+switch off the light s w i t c h o f f t h e l i g h t |
+turn off the volume t u r n o f f t h e v o l u m e |
+stop right there s t o p r i g h t t h e r e |
+start the task s t a r t t h e t a s k |
+start the mission s t a r t t h e m i s s i o n |

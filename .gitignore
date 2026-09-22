@@ -59,13 +59,9 @@ htmlcov/
 # ============================
 # Data files and models
 # ============================
-data/raw/
-data/processed/
-data/wins_and_feats/
-data/umap_plots/
-data/models/
-# *.h5
-# *.bio
+data*/
+*.h5
+*.bio
 
 # ============================
 # Model checkpoints (optional)
@@ -89,7 +85,13 @@ data/models/
 # ============================
 # Artifacts
 # ============================
-artifacts
+artifacts*/
 # Silent wear env
 silent_wear
 silent_wear_os
+
+# ============================
+# Image files
+# ============================
+*.png
+windowing_check*/

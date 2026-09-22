@@ -1,0 +1,27 @@
+model:
+  kind: dl
+  name: emg_transformer
+  kwargs:
+    attn_drop: 0.1
+    proj_drop: 0.1
+
+    train_cfg:
+      warmup_epochs: 5
+      num_epochs: 200
+      lr: 0.0003
+      early_stop_patience: 20
+      weight_decay: 1.0e-4
+      grad_clip_norm: 1.0
+
+      loss_name: cross_entropy
+
+      optimizer_cfg:
+        name: adamw
+        lr: 0.0003
+
+      scheduler:
+        name: ReduceLROnPlateau
+        mode: min
+        factor: 0.5
+        patience: 5
+        verbose: true

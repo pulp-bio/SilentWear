@@ -1,0 +1,17 @@
+{
+  "signals": {
+    "eeg": {
+      "filters": [
+        {"type": "bandpass", "lowcut": 4.0, "highcut": 40.0, "order": 4},
+        {"type": "notch", "freq": 50.0, "q": 30}
+      ]
+    },
+    "emg": {
+      "filters": [
+        {"type": "highpass", "cutoff": 20.0, "order": 4},
+        {"type": "notch", "freq": 50.0, "q": 30}
+      ],
+      "exclude_channels": [11, 12]
+    }
+  }
+}
