@@ -264,6 +264,7 @@ bash reproduce_paper_scripts/40_run_seed_job.sh 52 global_and_rf ./data wins_and
 | `ft_and_tfs` | Inter-Session Fine Tuning + Training From Scratch (800 and 1400 ms) |
 | `random_labels` | Random-label control (inter-session SpeechNet, train/validation labels permuted) |
 | `scaling_silent`, `scaling_vocalized` | Subject-scaling analysis (pre-training on 0–3 other subjects, then zero-shot or fine-tuning on 1–2 sessions of the target subject) |
+| `scaling_joint_silent` | Subject-scaling analysis with joint pre-training: pool subjects contribute silent and vocalized data, the target subject only silent data (fine-tuning and test) |
 | `cross_modal` | Cross-modal evaluation: the Inter-Session SpeechNet models (1400 ms) are tested on the same held-out session of the other mode (vocalized → silent, silent → vocalized); inference only, run after `inter_session_sweep` |
 
 `<win_and_feats>` is the name of the windows folder inside `<data_dir>` (`wins_and_features` for the released dataset). Each job appends a row (start, end, seed, job, git commit, exit code, log) to `<artifacts_root>/runs_manifest.csv`. Jobs are independent and can run in parallel, also on different GPUs (`CUDA_VISIBLE_DEVICES`).

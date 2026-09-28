@@ -48,6 +48,14 @@ Evaluated settings ("bars")
     the model is trained from random initialisation with the base config; x = 0 with
     ft_2sess therefore equals the paper's inter-session setting.
 
+Optional joint-modality pre-training (--joint_pretraining)
+    Pre-training uses silent AND vocalized data of the pool subjects; the target subject
+    only contributes data of the evaluated condition (fine-tuning and test), e.g. a user
+    who can only articulate silently. Rest downsampling is done per subject and condition,
+    the train/val split is stratified by label and condition. x = 0 (no pre-training) is
+    unaffected and must equal the mode-specific run.
+    Outputs go to models/subject_scaling_joint/ (with --normalize: ..._joint_norm_<mode>/).
+
 Optional EMG amplitude normalisation (--normalize, default: none)
     Every EMG channel is divided by a robust amplitude (95th percentile of |x|), computed
     separately for every subject and session (i.e. per donning of the device) and applied
@@ -59,6 +67,7 @@ Optional EMG amplitude normalisation (--normalize, default: none)
                     then excluded from every test session. Scores are therefore not directly
                     comparable with the other modes (smaller test sets).
     Outputs go to models/subject_scaling_norm_<mode>/ (none: models/subject_scaling/).
+    Normalisation is computed per condition, before joining the conditions.
 
 Aggregation, tables and figures
     utils/III_results_analysis/IV_subject_scaling_analysis.py (reads results.csv).
@@ -104,6 +113,7 @@ from models.TorchTrainer import evaluate_model
 from utils.general_utils import load_all_h5files_from_folder
 
 SUBJECTS = ["S01", "S02", "S03", "S04"]  # default cohort (--subjects)
+CONDITIONS = ["silent", "vocalized"]
 SESSIONS = [1, 2, 3]  # every subject must have exactly these sessions
 BARS = ["zero_shot", "ft_1sess", "ft_2sess"]
 META_COLS = ["Label_int", "Label_str", "session_id", "batch_id"]
@@ -161,9 +171,11 @@ def normalize_sessions(df: pd.DataFrame, mode: str) -> Tuple[pd.DataFrame, List[
 
 
 def downsample_rest(df: pd.DataFrame, seed: int) -> pd.DataFrame:
-    """Balance the rest class to the smallest word class, separately per subject."""
+    """Balance the rest class to the smallest word class, separately per subject
+    (and per condition when the data contains several conditions)."""
+    keys = ["subject", "condition"] if "condition" in df.columns else "subject"
     parts = []
-    for _, d in df.groupby("subject", sort=True):
+    for _, d in df.groupby(keys, sort=True):
         min_samples = d["Label_int"].value_counts().min()
         rest = d[d["Label_str"] == "rest"]
         keep = rest.sample(n=min_samples, random_state=seed).index
@@ -172,9 +184,10 @@ def downsample_rest(df: pd.DataFrame, seed: int) -> pd.DataFrame:
 
 
 def split_train_val(df: pd.DataFrame, val_size: float, seed: int) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    return train_test_split(
-        df, test_size=val_size, shuffle=True, random_state=seed, stratify=df["Label_int"]
-    )
+    strata = df["Label_int"]
+    if "condition" in df.columns:  # joint pre-training: stratify by label and condition
+        strata = df["Label_int"].astype(str) + "_" + df["condition"]
+    return train_test_split(df, test_size=val_size, shuffle=True, random_state=seed, stratify=strata)
 
 
 # ----------------------------------------------------------------------------
@@ -238,7 +251,7 @@ def pool_name(pool: Tuple[str, ...]) -> str:
 class SubjectScalingExperiment:
     def __init__(
         self, base_cfg: dict, model_cfg: dict, cond: str, artifacts_dir: Path, subjects, targets,
-        normalize: str = "none",
+        normalize: str = "none", joint_pretraining: bool = False,
     ):
         self.cond = cond
         self.base_cfg = deepcopy(base_cfg)
@@ -258,7 +271,10 @@ class SubjectScalingExperiment:
         if normalize not in NORMALIZE_MODES:
             raise ValueError(f"normalize must be one of {NORMALIZE_MODES}")
         self.normalize = normalize
-        experiment = "subject_scaling" if normalize == "none" else f"subject_scaling_norm_{normalize}"
+        self.joint_pretraining = bool(joint_pretraining)
+        experiment = "subject_scaling" + ("_joint" if self.joint_pretraining else "")
+        if normalize != "none":
+            experiment += f"_norm_{normalize}"
         self.out_dir = artifacts_dir / "models" / experiment / cond / f"w{self.win_ms}ms"
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.results_path = self.out_dir / "results.csv"
@@ -273,7 +289,23 @@ class SubjectScalingExperiment:
         self.data, scales = {}, []
         for s in self.subjects:
             self.data[s], sc = normalize_sessions(load_subject(self.base_cfg, s, cond), normalize)
-            scales += sc
+            scales += [{"condition": cond, **r} for r in sc]
+        # data used for pre-training (pool subjects only)
+        self.pretrain_conditions = [cond]
+        self.pool_data = self.data
+        if self.joint_pretraining:
+            self.pretrain_conditions = sorted(CONDITIONS)
+            self.pool_data = {}
+            for s in self.subjects:
+                parts = []
+                for c in self.pretrain_conditions:
+                    if c == cond:
+                        d = self.data[s]
+                    else:
+                        d, sc = normalize_sessions(load_subject(self.base_cfg, s, c), normalize)
+                        scales += [{"condition": c, **r} for r in sc]
+                    parts.append(d.assign(condition=c))
+                self.pool_data[s] = pd.concat(parts, ignore_index=True)
         if scales:
             pd.DataFrame(scales).to_csv(self.out_dir / "normalization_scales.csv", index=False)
         for s, df in self.data.items():
@@ -310,6 +342,8 @@ class SubjectScalingExperiment:
             "val_size": self.val_size,
             "split_seed": self.seed,
             "ft_settings": FT_SETTINGS,
+            "joint_pretraining": self.joint_pretraining,
+            "pretrain_conditions": self.pretrain_conditions,
             "normalize": self.normalize,
             "norm_percentile": NORM_PERCENTILE if self.normalize != "none" else None,
             "calib_batch": CALIB_BATCH if self.normalize == "session_calib" else None,
@@ -329,7 +363,7 @@ class SubjectScalingExperiment:
             return ckpt
         ckpt.parent.mkdir(parents=True, exist_ok=True)
         print(f"\n=== PRETRAIN | {self.cond} | pool={pool_name(pool)} ===")
-        df = downsample_rest(pd.concat([self.data[s] for s in pool], ignore_index=True), self.seed)
+        df = downsample_rest(pd.concat([self.pool_data[s] for s in pool], ignore_index=True), self.seed)
         df_train, df_val = split_train_val(df, self.val_size, self.seed)
         mm = build_master(self._cfg_for(pool_name(pool)), self.model_cfg, df_train, df_val)
         tmp = ckpt.parent / "model.partial.pt"  # TorchTrainer forces a .pt suffix
@@ -337,7 +371,8 @@ class SubjectScalingExperiment:
         tmp.rename(ckpt)  # only a completed training produces model.pt
         with open(ckpt.parent / "pretrain_info.json", "w") as f:
             json.dump(
-                {"pool": list(pool), "n_train": len(df_train), "n_val": len(df_val), **ckpt_info(ckpt)},
+                {"pool": list(pool), "conditions": self.pretrain_conditions,
+                 "n_train": len(df_train), "n_val": len(df_val), **ckpt_info(ckpt)},
                 f,
                 indent=4,
             )
@@ -453,6 +488,8 @@ def main():
     ap.add_argument("--subjects", nargs="+", default=SUBJECTS, help="Cohort (targets and pool candidates)")
     ap.add_argument("--targets", nargs="+", default=None, help="Subset of --subjects to evaluate (default: all)")
     ap.add_argument("--window_s", type=float, default=1.4)
+    ap.add_argument("--joint_pretraining", action="store_true",
+                    help="Pre-train on silent + vocalized data of the pool subjects")
     ap.add_argument("--normalize", choices=NORMALIZE_MODES, default="none",
                     help="Per-session EMG amplitude normalisation (default: none = paper setting)")
     ap.add_argument("--max_epochs", type=int, default=None, help="Debug only: cap all epochs")
@@ -483,11 +520,11 @@ def main():
     for cond in args.conditions:
         SubjectScalingExperiment(
             base_cfg, model_cfg, cond, args.artifacts_dir, args.subjects, args.targets or args.subjects,
-            normalize=args.normalize,
+            normalize=args.normalize, joint_pretraining=args.joint_pretraining,
         ).run()
 
     print("Aggregate with: python utils/III_results_analysis/IV_subject_scaling_analysis.py "
-          f"--artifacts_dir {args.artifacts_dir}")
+          f"--artifacts_dir {args.artifacts_dir} [--experiment subject_scaling_joint]")
 
 
 if __name__ == "__main__":
