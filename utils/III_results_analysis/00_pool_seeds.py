@@ -198,7 +198,19 @@ def seed_of(d: Path) -> int:
     return int(name.split("_", 1)[1])
 
 
+def check_seed_dirs(seed_dirs: List[Path], sub: str) -> None:
+    """Fail loudly if a seed directory (or its <sub> folder) is missing or empty."""
+    for d in seed_dirs:
+        if not (d / sub).is_dir() or not any((d / sub).iterdir()):
+            raise SystemExit(
+                f"[ERROR] no '{sub}' results in {d} (resolved: {d.resolve()}).\n"
+                f"        Relative paths are resolved from the current directory ({Path.cwd()});"
+                f" run from the repository root or pass absolute paths."
+            )
+
+
 def run_pool(seed_dirs: List[Path], out_dir: Path, allow_incomplete: bool) -> None:
+    check_seed_dirs(seed_dirs, "models")
     seeds = [seed_of(d) for d in seed_dirs]
     rels = sorted(
         p.relative_to(seed_dirs[0])
@@ -305,6 +317,7 @@ def spread_table(paths: List[Path], seeds: List[int]) -> pd.DataFrame:
 
 
 def run_spread(seed_dirs: List[Path], out_dir: Path) -> None:
+    check_seed_dirs(seed_dirs, "tables")
     seeds = [seed_of(d) for d in seed_dirs]
     names = sorted(p.name for p in (seed_dirs[0] / "tables").glob("*.csv"))
     dst_dir = out_dir / "seed_spread"
