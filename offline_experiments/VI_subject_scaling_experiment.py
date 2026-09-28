@@ -1,0 +1,433 @@
+#!/usr/bin/env python3
+
+
+# Copyright ETH Zurich 2026
+# Licensed under Apache v2.0 see LICENSE for details.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+"""
+Subject-scaling analysis (inter-session, SpeechNet).
+
+Question: does pre-training on more (other) subjects improve performance on a new
+subject, zero-shot and after fine-tuning on 1 or 2 of its sessions?
+
+Protocol (leave-one-subject-out over the 4 subjects, per condition):
+- Target subject X; pre-training pool = any subset of size x = 1, 2, 3 of the other
+  three subjects (N = 3, 3, 1 combinations). x = 0 means no pre-training.
+- Pre-training: all sessions of the pool subjects (rest downsampled per subject),
+  stratified train/val split, base training config (100 epochs). Each of the
+  14 possible pools is trained once and reused for every target it excludes.
+- Bars, each evaluated on whole held-out target sessions, one score per session:
+    zero_shot : pre-trained model tested on each target session       (x >= 1)
+    ft_1sess  : fine-tune on 1 target session, test on the other two
+    ft_2sess  : fine-tune on 2 target sessions, test on the remaining one
+  Fine-tuning (x >= 1) starts from the pre-trained weights and uses the paper's
+  fine-tuning config (all layers, lr 1e-3, 50 epochs, early stopping). At x = 0 the
+  model is trained from scratch on the target sessions with the base config, so
+  x = 0 / ft_2sess is the paper's inter-session setting.
+
+Aggregation (--aggregate):
+- unit = session index (ft_1sess: fine-tuning session; zero_shot / ft_2sess: test session)
+- per (target, x, bar, unit): mean over the N pre-training combinations and test sessions
+- per (target, x, bar): mean +- std over the 3 units
+- average: mean +- std over the 4 target subjects
+
+Outputs:
+    <artifacts_dir>/models/subject_scaling/<condition>/w<ms>ms/
+        pretrain/<S01+S02>/model.pt
+        finetune/<target>/<pool or none>/<bar>_train<sessions>.pt
+        results.csv   (one row per test session score; resumable)
+        run_cfg.json
+    <artifacts_dir>/tables/subject_scaling_<condition>_w<ms>ms.csv   (--aggregate)
+
+Usage:
+    python offline_experiments/VI_subject_scaling_experiment.py \
+        --data_dir /path/to/data --artifacts_dir artifacts_rebuttal --conditions silent
+    python offline_experiments/VI_subject_scaling_experiment.py --artifacts_dir artifacts_rebuttal --aggregate
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from copy import deepcopy
+from itertools import combinations
+from pathlib import Path
+from typing import Dict, List, Optional, Sequence, Tuple
+
+import numpy as np
+import pandas as pd
+import torch
+import yaml
+from sklearn.model_selection import train_test_split
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+from offline_experiments.IV_inter_session_with_ft import build_ft_model_cfg
+from offline_experiments.Model_Master import Model_Master
+from models.seeds import RANDOM_SEED, RGN_SEED, TORCH_MANUAL_SEED
+from models.TorchTrainer import evaluate_model
+from utils.general_utils import load_all_h5files_from_folder
+
+SUBJECTS = ["S01", "S02", "S03", "S04"]
+SESSIONS = [1, 2, 3]
+BARS = ["zero_shot", "ft_1sess", "ft_2sess"]
+META_COLS = ["Label_int", "Label_str", "session_id", "batch_id"]
+FT_SETTINGS = {"ft_lr": 1e-3, "num_ft_epochs": 50}  # paper Setting III-a
+
+
+# ----------------------------------------------------------------------------
+# Data helpers
+# ----------------------------------------------------------------------------
+def load_subject(base_cfg: dict, sub: str, cond: str) -> pd.DataFrame:
+    win_ms = int(round(float(base_cfg["window"]["window_size_s"]) * 1000))
+    d = (
+        Path(base_cfg["data"]["data_directory"])
+        / base_cfg["paths"]["win_and_feats"]
+        / sub
+        / cond
+        / f"WIN_{win_ms}"
+    )
+    if not d.exists():
+        raise FileNotFoundError(f"Windows directory does not exist: {d}")
+    df = load_all_h5files_from_folder(d, key="wins_feats")
+    ch_cols = [c for c in df.columns if c.startswith("Ch_") and c.endswith("_filt")]
+    df = df[META_COLS + ch_cols].copy()
+    df["subject"] = sub
+    return df.reset_index(drop=True)
+
+
+def downsample_rest(df: pd.DataFrame, seed: int) -> pd.DataFrame:
+    """Balance the rest class to the smallest word class, separately per subject."""
+    parts = []
+    for _, d in df.groupby("subject", sort=True):
+        min_samples = d["Label_int"].value_counts().min()
+        rest = d[d["Label_str"] == "rest"]
+        keep = rest.sample(n=min_samples, random_state=seed).index
+        parts.append(d.drop(index=rest.index.difference(keep)))
+    return pd.concat(parts)
+
+
+def split_train_val(df: pd.DataFrame, val_size: float, seed: int) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    return train_test_split(
+        df, test_size=val_size, shuffle=True, random_state=seed, stratify=df["Label_int"]
+    )
+
+
+# ----------------------------------------------------------------------------
+# Model helpers (thin wrappers around Model_Master)
+# ----------------------------------------------------------------------------
+def build_master(
+    base_cfg: dict, model_cfg: dict, df_train: pd.DataFrame, df_val: pd.DataFrame
+) -> Model_Master:
+    """Build a Model_Master with label mapping, fresh seeds and a new model."""
+    mm = Model_Master(base_config=base_cfg, model_config=model_cfg)
+    mm.df_train = df_train
+    mm.df_val = df_val
+    mm.df_test = pd.DataFrame()
+    mm.generate_training_labels()
+    mm.remap_all_datasets()
+    mm.register_model()  # resets seeds before building the model
+    return mm
+
+
+def load_weights(mm: Model_Master, ckpt_path: Path) -> None:
+    ckpt = torch.load(ckpt_path, map_location="cpu")
+    state_dict = ckpt.get("model_state_dict", ckpt)
+    missing, unexpected = mm.model.load_state_dict(state_dict, strict=True)
+    if missing or unexpected:
+        raise RuntimeError(f"Checkpoint mismatch: missing={missing} unexpected={unexpected}")
+
+
+def ckpt_info(ckpt_path: Path) -> Dict[str, Optional[int]]:
+    ckpt = torch.load(ckpt_path, map_location="cpu")
+    return {"best_epoch": ckpt.get("best_epoch"), "epochs_ran": ckpt.get("epochs_ran")}
+
+
+def eval_sessions(
+    mm: Model_Master, df_target: pd.DataFrame, sessions: Sequence[int]
+) -> Dict[int, Dict[str, float]]:
+    """Balanced accuracy of mm.model on each whole target session (rest not downsampled)."""
+    cols = mm.data_col_to_consider + ["Label_train"]
+    out = {}
+    for s in sessions:
+        d = df_target[df_target["session_id"] == s]
+        d = mm.apply_label_mapping(d, orig_to_train=mm.orig_to_train)
+        loader = mm.trainer_manager.create_dataloader_from_df(d[cols], shuffle=False)
+        metrics, _, _ = evaluate_model(mm.model, loader)
+        out[int(s)] = {
+            "balanced_accuracy": float(metrics["balanced_accuracy"]),
+            "accuracy": float(metrics["accuracy"]),
+            "n_test": int(len(d)),
+        }
+    return out
+
+
+def pool_name(pool: Tuple[str, ...]) -> str:
+    return "+".join(pool) if pool else "none"
+
+
+# ----------------------------------------------------------------------------
+# Experiment
+# ----------------------------------------------------------------------------
+class SubjectScalingExperiment:
+    def __init__(self, base_cfg: dict, model_cfg: dict, cond: str, artifacts_dir: Path, targets):
+        self.cond = cond
+        self.base_cfg = deepcopy(base_cfg)
+        self.base_cfg["condition"] = cond
+        self.model_cfg = model_cfg
+        self.ft_model_cfg = build_ft_model_cfg(model_cfg, FT_SETTINGS)
+        self.seed = int(self.base_cfg["experiment"]["seed"])
+        self.val_size = float(self.base_cfg["cv"]["val_size"])
+        self.targets = list(targets)
+        self.win_ms = int(round(float(self.base_cfg["window"]["window_size_s"]) * 1000))
+
+        self.out_dir = artifacts_dir / "models" / "subject_scaling" / cond / f"w{self.win_ms}ms"
+        self.out_dir.mkdir(parents=True, exist_ok=True)
+        self.results_path = self.out_dir / "results.csv"
+        self.done = set()
+        if self.results_path.exists():
+            prev = pd.read_csv(self.results_path, dtype={"pretrain_subjects": str})
+            self.done = set(
+                zip(prev.target, prev.pretrain_subjects, prev.bar, prev.unit.astype(int))
+            )
+            print(f"[RESUME] {len(self.done)} (target, pool, bar, unit) entries already done")
+
+        self.data = {s: load_subject(self.base_cfg, s, cond) for s in SUBJECTS}
+
+    # -- bookkeeping --------------------------------------------------------
+    def _cfg_for(self, name: str) -> dict:
+        cfg = deepcopy(self.base_cfg)
+        cfg["data"]["subject_id"] = name
+        return cfg
+
+    def _append(self, rows: List[dict]) -> None:
+        df = pd.DataFrame(rows)
+        df.to_csv(self.results_path, mode="a", header=not self.results_path.exists(), index=False)
+
+    def save_run_cfg(self) -> None:
+        try:
+            commit = subprocess.check_output(
+                ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"], text=True
+            ).strip()
+        except Exception:
+            commit = None
+        run_cfg = {
+            "experiment_type": "subject_scaling",
+            "condition": self.cond,
+            "window_size_ms": self.win_ms,
+            "targets": self.targets,
+            "val_size": self.val_size,
+            "split_seed": self.seed,
+            "ft_settings": FT_SETTINGS,
+            "base_cfg": self.base_cfg,
+            "model_cfg": self.model_cfg,
+            "ft_model_cfg": self.ft_model_cfg,
+            "seeds": {
+                "torch_manual_seed": TORCH_MANUAL_SEED,
+                "random_seed": RANDOM_SEED,
+                "rgn_seed": RGN_SEED,
+            },
+            "git_commit": commit,
+        }
+        with open(self.out_dir / "run_cfg.json", "w") as f:
+            json.dump(run_cfg, f, indent=4, sort_keys=True)
+
+    # -- stages -------------------------------------------------------------
+    def pretrain(self, pool: Tuple[str, ...]) -> Path:
+        ckpt = self.out_dir / "pretrain" / pool_name(pool) / "model.pt"
+        if ckpt.exists():
+            return ckpt
+        ckpt.parent.mkdir(parents=True, exist_ok=True)
+        print(f"\n=== PRETRAIN | {self.cond} | pool={pool_name(pool)} ===")
+        df = downsample_rest(pd.concat([self.data[s] for s in pool], ignore_index=True), self.seed)
+        df_train, df_val = split_train_val(df, self.val_size, self.seed)
+        mm = build_master(self._cfg_for(pool_name(pool)), self.model_cfg, df_train, df_val)
+        tmp = ckpt.parent / "model.partial.pt"  # TorchTrainer forces a .pt suffix
+        mm.trainer_manager.fit(save_model_path=tmp)
+        tmp.rename(ckpt)  # only a completed training produces model.pt
+        with open(ckpt.parent / "pretrain_info.json", "w") as f:
+            json.dump(
+                {"pool": list(pool), "n_train": len(df_train), "n_val": len(df_val), **ckpt_info(ckpt)},
+                f,
+                indent=4,
+            )
+        return ckpt
+
+    def zero_shot(self, target: str, pool: Tuple[str, ...], ckpt: Path) -> None:
+        pname = pool_name(pool)
+        todo = [s for s in SESSIONS if (target, pname, "zero_shot", s) not in self.done]
+        if not todo:
+            return
+        df_t = self.data[target]
+        # build only for label mapping / model skeleton; no training happens here
+        mm = build_master(self._cfg_for(target), self.model_cfg, df_t, pd.DataFrame())
+        load_weights(mm, ckpt)
+        scores = eval_sessions(mm, df_t, todo)
+        self._append(
+            [
+                self._row(target, pool, "zero_shot", unit=s, train_sessions=[], test_session=s,
+                          score=scores[s], n_train=0, n_val=0, info={}, ckpt=ckpt)
+                for s in todo
+            ]
+        )
+
+    def finetune(self, target: str, pool: Tuple[str, ...], ckpt: Optional[Path], bar: str, unit: int) -> None:
+        pname = pool_name(pool)
+        if (target, pname, bar, unit) in self.done:
+            return
+        if bar == "ft_1sess":
+            train_sessions, test_sessions = [unit], [s for s in SESSIONS if s != unit]
+        else:  # ft_2sess
+            train_sessions, test_sessions = [s for s in SESSIONS if s != unit], [unit]
+
+        print(f"\n=== {bar.upper()} | {self.cond} | target={target} | pool={pname} | train sess={train_sessions} ===")
+        df_t = self.data[target]
+        df = downsample_rest(df_t[df_t["session_id"].isin(train_sessions)], self.seed)
+        df_train, df_val = split_train_val(df, self.val_size, self.seed)
+        model_cfg = self.ft_model_cfg if ckpt is not None else self.model_cfg
+        mm = build_master(self._cfg_for(target), model_cfg, df_train, df_val)
+        if ckpt is not None:
+            load_weights(mm, ckpt)
+
+        save_path = self.out_dir / "finetune" / target / pname / f"{bar}_train{''.join(map(str, train_sessions))}.pt"
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        mm.trainer_manager.fit(save_model_path=save_path)  # restores best-val weights
+        scores = eval_sessions(mm, df_t, test_sessions)
+        info = ckpt_info(save_path)
+        self._append(
+            [
+                self._row(target, pool, bar, unit=unit, train_sessions=train_sessions, test_session=s,
+                          score=scores[s], n_train=len(df_train), n_val=len(df_val), info=info, ckpt=save_path)
+                for s in test_sessions
+            ]
+        )
+
+    def _row(self, target, pool, bar, unit, train_sessions, test_session, score, n_train, n_val, info, ckpt):
+        return {
+            "condition": self.cond,
+            "window_ms": self.win_ms,
+            "target": target,
+            "n_pretrain_subjects": len(pool),
+            "pretrain_subjects": pool_name(pool),
+            "bar": bar,
+            "unit": int(unit),
+            "train_sessions": "".join(map(str, train_sessions)),
+            "test_session": int(test_session),
+            "balanced_accuracy": score["balanced_accuracy"],
+            "accuracy": score["accuracy"],
+            "n_train": n_train,
+            "n_val": n_val,
+            "n_test": score["n_test"],
+            "best_epoch": info.get("best_epoch"),
+            "epochs_ran": info.get("epochs_ran"),
+            "checkpoint": str(ckpt),
+        }
+
+    def run(self) -> None:
+        self.save_run_cfg()
+        pools = [p for k in (1, 2, 3) for p in combinations(SUBJECTS, k)]
+        needed = [p for p in pools if any(t not in p for t in self.targets)]
+        ckpts = {p: self.pretrain(p) for p in needed}
+
+        for target in self.targets:
+            others = [s for s in SUBJECTS if s != target]
+            for x in (0, 1, 2, 3):
+                pools_x = [()] if x == 0 else list(combinations(others, x))
+                for pool in pools_x:
+                    ckpt = ckpts[pool] if pool else None
+                    if ckpt is not None:
+                        self.zero_shot(target, pool, ckpt)
+                    for bar in ("ft_1sess", "ft_2sess"):
+                        for unit in SESSIONS:
+                            self.finetune(target, pool, ckpt, bar, unit)
+        print(f"\n[DONE] {self.cond}: results in {self.results_path}")
+
+
+# ----------------------------------------------------------------------------
+# Aggregation
+# ----------------------------------------------------------------------------
+def aggregate(results_path: Path, out_csv: Path) -> pd.DataFrame:
+    r = pd.read_csv(results_path, dtype={"pretrain_subjects": str})
+    r = r.drop_duplicates(subset=["target", "pretrain_subjects", "bar", "unit", "test_session"], keep="last")
+    # 1) per unit: mean over pre-training combinations and test sessions
+    units = (
+        r.groupby(["target", "n_pretrain_subjects", "bar", "unit"])
+        .agg(acc=("balanced_accuracy", "mean"), n_models=("pretrain_subjects", "nunique"))
+        .reset_index()
+    )
+    # 2) per target: mean +- std over the 3 units
+    per_t = (
+        units.groupby(["target", "n_pretrain_subjects", "bar"])
+        .agg(mean=("acc", "mean"), std=("acc", lambda a: float(np.std(a))), n_units=("acc", "size"),
+             n_models_per_unit=("n_models", "max"))
+        .reset_index()
+    )
+    # 3) average: mean +- std over the target subjects
+    avg = (
+        per_t.groupby(["n_pretrain_subjects", "bar"])
+        .agg(mean=("mean", "mean"), std=("mean", lambda a: float(np.std(a))), n_units=("mean", "size"))
+        .reset_index()
+    )
+    avg["target"] = "Average"
+    out = pd.concat([per_t, avg], ignore_index=True)
+    out["mean_std_perc"] = [f"{100*m:.1f}±{100*s:.1f}" for m, s in zip(out["mean"], out["std"])]
+    out = out.sort_values(["target", "bar", "n_pretrain_subjects"]).reset_index(drop=True)
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(out_csv, index=False)
+    return out
+
+
+# ----------------------------------------------------------------------------
+# CLI
+# ----------------------------------------------------------------------------
+def main():
+    ap = argparse.ArgumentParser(description="Subject-scaling analysis (inter-session, SpeechNet)")
+    ap.add_argument("--base_config", type=Path, default=REPO_ROOT / "config" / "paper_models_config.yaml")
+    ap.add_argument("--model_config", type=Path, default=REPO_ROOT / "config" / "models_configs" / "speechnet_config.yaml")
+    ap.add_argument("--data_dir", type=Path, default=None)
+    ap.add_argument("--win_and_feats", type=str, default=None, help="Override paths.win_and_feats")
+    ap.add_argument("--artifacts_dir", type=Path, default=Path("./artifacts_rebuttal"))
+    ap.add_argument("--conditions", nargs="+", default=["silent", "vocalized"])
+    ap.add_argument("--targets", nargs="+", default=SUBJECTS)
+    ap.add_argument("--window_s", type=float, default=1.4)
+    ap.add_argument("--max_epochs", type=int, default=None, help="Debug only: cap all epochs")
+    ap.add_argument("--aggregate", action="store_true", help="Only aggregate existing results")
+    args = ap.parse_args()
+
+    if not args.aggregate:
+        if args.data_dir is None:
+            ap.error("--data_dir is required unless --aggregate is given")
+        base_cfg = yaml.safe_load(args.base_config.read_text())
+        model_cfg = yaml.safe_load(args.model_config.read_text())
+        base_cfg["data"]["data_directory"] = str(args.data_dir)
+        base_cfg["data"]["models_main_directory"] = str(args.artifacts_dir)
+        base_cfg["window"]["window_size_s"] = float(args.window_s)
+        if args.win_and_feats is not None:
+            base_cfg["paths"]["win_and_feats"] = args.win_and_feats
+        if args.max_epochs is not None:
+            model_cfg["model"]["kwargs"]["train_cfg"]["num_epochs"] = args.max_epochs
+            FT_SETTINGS["num_ft_epochs"] = args.max_epochs
+
+        for cond in args.conditions:
+            SubjectScalingExperiment(base_cfg, model_cfg, cond, args.artifacts_dir, args.targets).run()
+
+    win_ms = int(round(args.window_s * 1000))
+    for cond in args.conditions:
+        res = args.artifacts_dir / "models" / "subject_scaling" / cond / f"w{win_ms}ms" / "results.csv"
+        if not res.exists():
+            print(f"[AGGREGATE] no results for {cond} yet: {res}")
+            continue
+        out = aggregate(res, args.artifacts_dir / "tables" / f"subject_scaling_{cond}_w{win_ms}ms.csv")
+        print(f"\n=== {cond} ===")
+        print(out.pivot_table(index="target", columns=["bar", "n_pretrain_subjects"],
+                              values="mean_std_perc", aggfunc="first").to_string())
+
+
+if __name__ == "__main__":
+    main()
