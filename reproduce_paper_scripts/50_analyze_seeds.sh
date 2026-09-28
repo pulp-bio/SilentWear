@@ -59,6 +59,7 @@ analyze() {
         run $PY $A/III_ft_results.py --artifacts_dir "$D" --model_base_id $w
     done
     run $PY $A/IV_subject_scaling_analysis.py --artifacts_dir "$D"
+    run $PY $A/V_confusion_matrix_figure.py --artifacts_dir "$D"
 }
 
 FAILED=0

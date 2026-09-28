@@ -287,7 +287,7 @@ bash reproduce_paper_scripts/50_analyze_seeds.sh ./artifacts 42 52 62
 This script
 
 1. **pools** the seeds with `utils/III_results_analysis/00_pool_seeds.py` into `seeds_pooled/models/`, a tree with the same layout as a single-seed run: every per-fold (or per-session, per-batch) value is the mean over seeds of the same fold. Confusion matrices are averaged element-wise; since the test set of a fold is identical across seeds, this equals normalising the summed counts. Per-window predictions are not pooled. Pooling fails if a run is missing for any seed or if the test folds differ;
-2. **analyses** every `seed_<s>/` and `seeds_pooled/` with the scripts of step 3️⃣ (plus `IV_subject_scaling_analysis.py`), producing the usual `tables/` and `figures/`;
+2. **analyses** every `seed_<s>/` and `seeds_pooled/` with the scripts of step 3️⃣ (plus `IV_subject_scaling_analysis.py` and `V_confusion_matrix_figure.py`, which assembles all SpeechNet confusion matrices into the single paper figure `figures/speechnet_w1400ms_cm_global_inter_session.svg`), producing the usual `tables/` and `figures/`;
 3. computes the **seed spread**: `seeds_pooled/seed_spread/<table>.csv` contains, for every table, the mean and standard deviation *across seeds* of each reported value.
 
 In the pooled tables and figures, standard deviations keep the meaning of the single-seed results (across folds or sessions for each subject, across subjects for the average); the variability due to the seed is reported separately in `seed_spread/`.
