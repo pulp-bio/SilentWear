@@ -40,8 +40,6 @@ torch.use_deterministic_algorithms(True)
 def configure_seed(seed: int) -> None:
     """
     Derive all seeds from one run seed (42, 52, 62, ...).
-
-    seed=42 reproduces the original constants (torch 42, numpy/python 0).
     Must be called before any model is built; set_seeds() then uses these values.
     """
     global PD_SAMPLE_SEED, TORCH_MANUAL_SEED, RANDOM_SEED, RGN_SEED, rng

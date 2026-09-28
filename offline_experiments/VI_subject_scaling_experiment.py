@@ -19,6 +19,12 @@ Definitions
     Pool P              the set of subjects used for pre-training, P ⊆ {S01..S04} \\ {T}.
     x = |P|             number of pre-training subjects, x ∈ {0, 1, 2, 3}.
     N(x)                number of pools of size x per target: C(3, x) = 1, 3, 3, 1.
+    
+                        x	C(3, x)	Pools
+                        0	1	    { } (empty: no pre-training)
+                        1	3	    {S01}, {S02}, {S03}
+                        2	3	    {S01,S02}, {S01,S03}, {S02,S03}
+                        3	1	    {S01,S02,S03}
     Condition           silent or vocalized; every step is run separately per condition.
 
 Pre-training (x >= 1)
@@ -27,13 +33,13 @@ Pre-training (x >= 1)
     stratified by label, val_size from the config (0.2). Training: base config
     (100 epochs, early stopping on the validation loss).
     Only the 14 distinct non-empty pools with |P| <= 3 are trained (4 + 6 + 4);
-    a pool is reused for every target not contained in it, which covers all
+    a pool is reused for every target subject not contained in it, which covers all
     4 x 7 = 28 (target, pool) pairs.
 
 Evaluated settings ("bars")
-    Every score is the balanced accuracy on one complete held-out session of T
+    Every score is the balanced accuracy on one complete held-out session of subject T
     (rest class not downsampled).
-    zero_shot   pre-trained model, no target data; scored on each of the 3 sessions.  x >= 1
+    zero_shot   pre-trained model on other subjects, no target data; scored on each of the 3 sessions.  x >= 1
     ft_1sess    trained on 1 session of T; scored on each of the other 2 sessions.
     ft_2sess    trained on 2 sessions of T; scored on the remaining session.
     For x >= 1, training starts from the pre-trained weights of P and uses the paper's
@@ -41,13 +47,8 @@ Evaluated settings ("bars")
     the model is trained from random initialisation with the base config; x = 0 with
     ft_2sess therefore equals the paper's inter-session setting.
 
-Aggregation (--aggregate), per condition
-    Unit u      the session index that identifies a data split: the training session
-                for ft_1sess, the test session for zero_shot and ft_2sess (3 units).
-    Step 1      per (T, x, bar, u): mean over the N(x) pools and over the test sessions
-                of that split.
-    Step 2      per (T, x, bar): mean +- std over the 3 units (population std).
-    Step 3      average panel: mean +- std of the Step-2 means over the 4 targets.
+Aggregation, tables and figures
+    utils/III_results_analysis/IV_subject_scaling_analysis.py (reads results.csv).
 
 Outputs:
     <artifacts_dir>/models/subject_scaling/<condition>/w<ms>ms/
@@ -55,13 +56,12 @@ Outputs:
         finetune/<target>/<pool or none>/<bar>_train<sessions>.pt
         results.csv   (one row per test session score; resumable)
         run_cfg.json
-    <artifacts_dir>/tables/subject_scaling_<condition>_w<ms>ms.csv   (--aggregate)
 
 Usage:
     python offline_experiments/VI_subject_scaling_experiment.py \
         --data_dir /path/to/data --artifacts_dir artifacts_rebuttal/seed_42 --conditions silent --seed 42
-    python offline_experiments/VI_subject_scaling_experiment.py \
-        --artifacts_dir artifacts_rebuttal/seed_42 --aggregate
+    python utils/III_results_analysis/IV_subject_scaling_analysis.py \
+        --artifacts_dir artifacts_rebuttal/seed_42
 """
 
 from __future__ import annotations
@@ -197,6 +197,7 @@ class SubjectScalingExperiment:
         self.base_cfg = deepcopy(base_cfg)
         self.base_cfg["condition"] = cond
         self.model_cfg = model_cfg
+        # Fine-tuning configuration. 
         self.ft_model_cfg = build_ft_model_cfg(model_cfg, FT_SETTINGS)
         self.seed = int(self.base_cfg["experiment"]["seed"])
         self.val_size = float(self.base_cfg["cv"]["val_size"])
@@ -343,8 +344,10 @@ class SubjectScalingExperiment:
 
     def run(self) -> None:
         self.save_run_cfg()
+        # pools build the possible combinations of pre-training subjects 
         pools = [p for k in (1, 2, 3) for p in combinations(SUBJECTS, k)]
         needed = [p for p in pools if any(t not in p for t in self.targets)]
+        # Pre-training the needed models for all pools  
         ckpts = {p: self.pretrain(p) for p in needed}
 
         for target in self.targets:
@@ -362,105 +365,6 @@ class SubjectScalingExperiment:
 
 
 # ----------------------------------------------------------------------------
-# Aggregation
-# ----------------------------------------------------------------------------
-def aggregate(results_path: Path, out_csv: Path) -> pd.DataFrame:
-    r = pd.read_csv(results_path, dtype={"pretrain_subjects": str})
-    r = r.drop_duplicates(subset=["target", "pretrain_subjects", "bar", "unit", "test_session"], keep="last")
-    # 1) per unit: mean over pre-training combinations and test sessions
-    units = (
-        r.groupby(["target", "n_pretrain_subjects", "bar", "unit"])
-        .agg(acc=("balanced_accuracy", "mean"), n_models=("pretrain_subjects", "nunique"))
-        .reset_index()
-    )
-    # 2) per target: mean +- std over the 3 units
-    per_t = (
-        units.groupby(["target", "n_pretrain_subjects", "bar"])
-        .agg(mean=("acc", "mean"), std=("acc", lambda a: float(np.std(a))), n_units=("acc", "size"),
-             n_models_per_unit=("n_models", "max"))
-        .reset_index()
-    )
-    # 3) average: mean +- std over the target subjects
-    avg = (
-        per_t.groupby(["n_pretrain_subjects", "bar"])
-        .agg(mean=("mean", "mean"), std=("mean", lambda a: float(np.std(a))), n_units=("mean", "size"))
-        .reset_index()
-    )
-    avg["target"] = "Average"
-    out = pd.concat([per_t, avg], ignore_index=True)
-    out["mean_std_perc"] = [f"{100*m:.1f}±{100*s:.1f}" for m, s in zip(out["mean"], out["std"])]
-    out = out.sort_values(["target", "bar", "n_pretrain_subjects"]).reset_index(drop=True)
-    out_csv.parent.mkdir(parents=True, exist_ok=True)
-    out.to_csv(out_csv, index=False)
-    return out
-
-
-def plot_scaling(tables: Dict[str, pd.DataFrame], out_base: Path) -> None:
-    """Grouped bars per panel (S01..S04, Average) and row (condition)."""
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    # validated categorical slots (blue, aqua, orange); aqua needs visible labels -> Average values
-    colors = {"zero_shot": "#2a78d6", "ft_1sess": "#1baf7a", "ft_2sess": "#eb6834"}
-    labels = {
-        "zero_shot": "Zero-shot",
-        "ft_1sess": "Fine-tuned, 1 target session",
-        "ft_2sess": "Fine-tuned, 2 target sessions",
-    }
-    ink, ink2, grid = "#0b0b0b", "#52514e", "#e6e5e0"
-    panels = SUBJECTS + ["Average"]
-    conds = [c for c in ("vocalized", "silent") if c in tables]
-    xs = np.arange(4)
-    width = 0.26
-
-    plt.rcParams.update({"font.size": 9, "axes.edgecolor": ink2, "axes.labelcolor": ink,
-                         "xtick.color": ink2, "ytick.color": ink2})
-    fig, axes = plt.subplots(len(conds), len(panels), figsize=(12, 2.7 * len(conds) + 0.6),
-                             sharey=True, squeeze=False)
-    for r, cond in enumerate(conds):
-        t = tables[cond]
-        for c, panel in enumerate(panels):
-            ax = axes[r, c]
-            ax.set_axisbelow(True)
-            ax.yaxis.grid(True, color=grid, linewidth=0.8)
-            ax.axhline(100 / 9, color=ink2, linestyle=(0, (3, 3)), linewidth=0.8)
-            for b, bar in enumerate(BARS):
-                d = t[(t.target == panel) & (t.bar == bar)].set_index("n_pretrain_subjects")
-                vals = np.array([d["mean"].get(x, np.nan) for x in xs]) * 100
-                errs = np.array([d["std"].get(x, np.nan) for x in xs]) * 100
-                pos = xs + (b - 1) * width
-                ax.bar(pos, vals, width=width, color=colors[bar], edgecolor="white", linewidth=1,
-                       label=labels[bar] if (r, c) == (0, 0) else None, zorder=2)
-                ax.errorbar(pos, vals, yerr=errs, fmt="none", ecolor=ink2, elinewidth=0.8,
-                            capsize=2, zorder=3)
-                if panel == "Average":
-                    for p, v, e in zip(pos, vals, errs):
-                        if np.isfinite(v):
-                            ax.text(p, v + (e if np.isfinite(e) else 0) + 1.5, f"{v:.0f}",
-                                    ha="center", va="bottom", fontsize=6.5, color=ink2)
-            ax.set_xticks(xs)
-            ax.set_xlim(-0.55, 3.55)
-            ax.set_ylim(0, 100)
-            ax.spines[["top", "right"]].set_visible(False)
-            if r == 0:
-                ax.set_title(panel, fontsize=10, color=ink)
-            if c == 0:
-                ax.set_ylabel(f"{cond.capitalize()}\nBalanced accuracy (%)")
-    # x = 0 has no zero-shot bar, so its slot is free for the label
-    axes[0, 0].text(-0.5, 100 / 9 + 1.5, "chance", ha="left", va="bottom", fontsize=7, color=ink2)
-    fig.supxlabel("Number of pre-training subjects", fontsize=9, color=ink)
-    fig.legend(loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 1.0))
-    fig.tight_layout(rect=(0, 0, 1, 0.94))
-    out_base.parent.mkdir(parents=True, exist_ok=True)
-    for ext in ("pdf", "svg", "png"):
-        fig.savefig(out_base.with_suffix(f".{ext}"), dpi=200, bbox_inches="tight")
-    plt.close(fig)
-    print(f"[PLOT] saved {out_base}.pdf/.svg/.png")
-
-
-# ----------------------------------------------------------------------------
 # CLI
 # ----------------------------------------------------------------------------
 def main():
@@ -474,7 +378,6 @@ def main():
     ap.add_argument("--targets", nargs="+", default=SUBJECTS)
     ap.add_argument("--window_s", type=float, default=1.4)
     ap.add_argument("--max_epochs", type=int, default=None, help="Debug only: cap all epochs")
-    ap.add_argument("--aggregate", action="store_true", help="Only aggregate existing results")
     ap.add_argument(
         "--seed",
         type=int,
@@ -483,40 +386,27 @@ def main():
     )
     args = ap.parse_args()
 
-    if not args.aggregate:
-        if args.data_dir is None:
-            ap.error("--data_dir is required unless --aggregate is given")
-        base_cfg = yaml.safe_load(args.base_config.read_text())
-        model_cfg = yaml.safe_load(args.model_config.read_text())
-        base_cfg["data"]["data_directory"] = str(args.data_dir)
-        base_cfg["data"]["models_main_directory"] = str(args.artifacts_dir)
-        base_cfg["window"]["window_size_s"] = float(args.window_s)
-        if args.win_and_feats is not None:
-            base_cfg["paths"]["win_and_feats"] = args.win_and_feats
-        if args.seed is not None:
-            base_cfg["experiment"]["seed"] = args.seed
-        configure_seed(base_cfg["experiment"]["seed"])
-        if args.max_epochs is not None:
-            model_cfg["model"]["kwargs"]["train_cfg"]["num_epochs"] = args.max_epochs
-            FT_SETTINGS["num_ft_epochs"] = args.max_epochs
+    if args.data_dir is None:
+        ap.error("--data_dir is required")
+    base_cfg = yaml.safe_load(args.base_config.read_text())
+    model_cfg = yaml.safe_load(args.model_config.read_text())
+    base_cfg["data"]["data_directory"] = str(args.data_dir)
+    base_cfg["data"]["models_main_directory"] = str(args.artifacts_dir)
+    base_cfg["window"]["window_size_s"] = float(args.window_s)
+    if args.win_and_feats is not None:
+        base_cfg["paths"]["win_and_feats"] = args.win_and_feats
+    if args.seed is not None:
+        base_cfg["experiment"]["seed"] = args.seed
+    configure_seed(base_cfg["experiment"]["seed"])
+    if args.max_epochs is not None:
+        model_cfg["model"]["kwargs"]["train_cfg"]["num_epochs"] = args.max_epochs
+        FT_SETTINGS["num_ft_epochs"] = args.max_epochs
 
-        for cond in args.conditions:
-            SubjectScalingExperiment(base_cfg, model_cfg, cond, args.artifacts_dir, args.targets).run()
-
-    win_ms = int(round(args.window_s * 1000))
-    tables = {}
     for cond in args.conditions:
-        res = args.artifacts_dir / "models" / "subject_scaling" / cond / f"w{win_ms}ms" / "results.csv"
-        if not res.exists():
-            print(f"[AGGREGATE] no results for {cond} yet: {res}")
-            continue
-        out = aggregate(res, args.artifacts_dir / "tables" / f"subject_scaling_{cond}_w{win_ms}ms.csv")
-        tables[cond] = out
-        print(f"\n=== {cond} ===")
-        print(out.pivot_table(index="target", columns=["bar", "n_pretrain_subjects"],
-                              values="mean_std_perc", aggfunc="first").to_string())
-    if tables:
-        plot_scaling(tables, args.artifacts_dir / "figures" / f"subject_scaling_w{win_ms}ms")
+        SubjectScalingExperiment(base_cfg, model_cfg, cond, args.artifacts_dir, args.targets).run()
+
+    print("Aggregate with: python utils/III_results_analysis/IV_subject_scaling_analysis.py "
+          f"--artifacts_dir {args.artifacts_dir}")
 
 
 if __name__ == "__main__":
