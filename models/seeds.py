@@ -20,25 +20,34 @@ import os
 
 # needed for GPU
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+import random
+
+import numpy as np
 import torch
 
 PD_SAMPLE_SEED = 42  # 42, 52, 62
 TORCH_MANUAL_SEED = 42  # 42, 52, 62
 RANDOM_SEED = 0  # 0,  10, 20
 RGN_SEED = 42  # 42, 52,62
-torch.manual_seed(TORCH_MANUAL_SEED)
 
 if torch.cuda.is_available():
     print(os.environ.get("CUDA_VISIBLE_DEVICES"))
     print("Cuda is available")
 torch.use_deterministic_algorithms(True)
-# For custom operation, might want to set python seed as well:
-import random
 
-random.seed(RANDOM_SEED)
-# set also numpy seed
-import numpy as np
 
-np.random.seed(RANDOM_SEED)
+def set_seeds() -> None:
+    """
+    Reset the global Python, NumPy and PyTorch RNGs.
+
+    Called before every model is built, so each run starts from the same random
+    state regardless of what was trained earlier in the same process.
+    """
+    torch.manual_seed(TORCH_MANUAL_SEED)
+    random.seed(RANDOM_SEED)
+    np.random.seed(RANDOM_SEED)
+
+
+set_seeds()
 rng = np.random.default_rng(RGN_SEED)
 print("SEEDS SET!")

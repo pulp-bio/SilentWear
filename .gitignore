@@ -90,6 +90,7 @@ data/models/
 # Artifacts
 # ============================
 artifacts
+artifacts_rebuttal
 # Silent wear env
 silent_wear
 silent_wear_os

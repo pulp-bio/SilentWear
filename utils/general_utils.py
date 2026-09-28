@@ -111,7 +111,8 @@ def load_all_h5files_from_folder(
     This function also prints basic statistics about loaded sessions, batches, and labels.
     """
     # 1. Find all HDF5 files
-    h5_files = list(data_directory.rglob("*.h5"))
+    # Sorted so that row order (and hence seeded splits) does not depend on the filesystem
+    h5_files = sorted(data_directory.rglob("*.h5"))
 
     if len(h5_files) == 0:
         print(f"No .h5 files found in: {data_directory}")
