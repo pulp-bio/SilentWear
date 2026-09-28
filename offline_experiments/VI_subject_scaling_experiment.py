@@ -8,31 +8,46 @@
 #
 
 """
-Subject-scaling analysis (inter-session, SpeechNet).
+Subject-scaling analysis (inter-session setting, SpeechNet, 1400 ms windows).
 
-Question: does pre-training on more (other) subjects improve performance on a new
-subject, zero-shot and after fine-tuning on 1 or 2 of its sessions?
+Question
+    Does pre-training on data from other subjects improve accuracy on a new subject,
+    both zero-shot and after fine-tuning on one or two of its sessions?
 
-Protocol (leave-one-subject-out over the 4 subjects, per condition):
-- Target subject X; pre-training pool = any subset of size x = 1, 2, 3 of the other
-  three subjects (N = 3, 3, 1 combinations). x = 0 means no pre-training.
-- Pre-training: all sessions of the pool subjects (rest downsampled per subject),
-  stratified train/val split, base training config (100 epochs). Each of the
-  14 possible pools is trained once and reused for every target it excludes.
-- Bars, each evaluated on whole held-out target sessions, one score per session:
-    zero_shot : pre-trained model tested on each target session       (x >= 1)
-    ft_1sess  : fine-tune on 1 target session, test on the other two
-    ft_2sess  : fine-tune on 2 target sessions, test on the remaining one
-  Fine-tuning (x >= 1) starts from the pre-trained weights and uses the paper's
-  fine-tuning config (all layers, lr 1e-3, 50 epochs, early stopping). At x = 0 the
-  model is trained from scratch on the target sessions with the base config, so
-  x = 0 / ft_2sess is the paper's inter-session setting.
+Definitions
+    Target subject T    the subject being evaluated (S01..S04, leave-one-subject-out).
+    Pool P              the set of subjects used for pre-training, P ⊆ {S01..S04} \\ {T}.
+    x = |P|             number of pre-training subjects, x ∈ {0, 1, 2, 3}.
+    N(x)                number of pools of size x per target: C(3, x) = 1, 3, 3, 1.
+    Condition           silent or vocalized; every step is run separately per condition.
 
-Aggregation (--aggregate):
-- unit = session index (ft_1sess: fine-tuning session; zero_shot / ft_2sess: test session)
-- per (target, x, bar, unit): mean over the N pre-training combinations and test sessions
-- per (target, x, bar): mean +- std over the 3 units
-- average: mean +- std over the 4 target subjects
+Pre-training (x >= 1)
+    Data: all 3 sessions of every subject in P. The rest class is downsampled to the
+    size of the smallest word class, separately for each subject. Train/val split:
+    stratified by label, val_size from the config (0.2). Training: base config
+    (100 epochs, early stopping on the validation loss).
+    Only the 14 distinct non-empty pools with |P| <= 3 are trained (4 + 6 + 4);
+    a pool is reused for every target not contained in it, which covers all
+    4 x 7 = 28 (target, pool) pairs.
+
+Evaluated settings ("bars")
+    Every score is the balanced accuracy on one complete held-out session of T
+    (rest class not downsampled).
+    zero_shot   pre-trained model, no target data; scored on each of the 3 sessions.  x >= 1
+    ft_1sess    trained on 1 session of T; scored on each of the other 2 sessions.
+    ft_2sess    trained on 2 sessions of T; scored on the remaining session.
+    For x >= 1, training starts from the pre-trained weights of P and uses the paper's
+    fine-tuning config (all layers, lr 1e-3, 50 epochs, early stopping). For x = 0,
+    the model is trained from random initialisation with the base config; x = 0 with
+    ft_2sess therefore equals the paper's inter-session setting.
+
+Aggregation (--aggregate), per condition
+    Unit u      the session index that identifies a data split: the training session
+                for ft_1sess, the test session for zero_shot and ft_2sess (3 units).
+    Step 1      per (T, x, bar, u): mean over the N(x) pools and over the test sessions
+                of that split.
+    Step 2      per (T, x, bar): mean +- std over the 3 units (population std).
+    Step 3      average panel: mean +- std of the Step-2 means over the 4 targets.
 
 Outputs:
     <artifacts_dir>/models/subject_scaling/<condition>/w<ms>ms/
@@ -44,8 +59,9 @@ Outputs:
 
 Usage:
     python offline_experiments/VI_subject_scaling_experiment.py \
-        --data_dir /path/to/data --artifacts_dir artifacts_rebuttal --conditions silent
-    python offline_experiments/VI_subject_scaling_experiment.py --artifacts_dir artifacts_rebuttal --aggregate
+        --data_dir /path/to/data --artifacts_dir artifacts_rebuttal/seed_42 --conditions silent --seed 42
+    python offline_experiments/VI_subject_scaling_experiment.py \
+        --artifacts_dir artifacts_rebuttal/seed_42 --aggregate
 """
 
 from __future__ import annotations
