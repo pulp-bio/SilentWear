@@ -54,6 +54,8 @@ analyze() {
         --model_name speechnet --windows_s 0.4 1.4
     run $PY $A/I_global_intersession_analysis.py --artifacts_dir "$D" --experiment inter_session_random_labels \
         --model_name speechnet --model_name_id w1400ms
+    run $PY $A/I_global_intersession_analysis.py --artifacts_dir "$D" --experiment inter_session_cross_modal \
+        --model_name speechnet --model_name_id w1400ms --plot_confusion_matrix
     run $PY $A/II_infotransrate.py --artifacts_dir "$D" --model_name speechnet
     for w in w1400ms w800ms; do
         run $PY $A/III_ft_results.py --artifacts_dir "$D" --model_base_id $w

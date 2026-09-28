@@ -48,6 +48,18 @@ Evaluated settings ("bars")
     the model is trained from random initialisation with the base config; x = 0 with
     ft_2sess therefore equals the paper's inter-session setting.
 
+Optional EMG amplitude normalisation (--normalize, default: none)
+    Every EMG channel is divided by a robust amplitude (95th percentile of |x|), computed
+    separately for every subject and session (i.e. per donning of the device) and applied
+    to all its windows (pre-training pool, fine-tuning and test data alike):
+    none            raw signals (paper setting).
+    session_oracle  statistics from all windows of the session (upper bound: at test time
+                    this uses the unlabeled test session itself).
+    session_calib   statistics from the rest windows of calibration batch 1 only; batch 1 is
+                    then excluded from every test session. Scores are therefore not directly
+                    comparable with the other modes (smaller test sets).
+    Outputs go to models/subject_scaling_norm_<mode>/ (none: models/subject_scaling/).
+
 Aggregation, tables and figures
     utils/III_results_analysis/IV_subject_scaling_analysis.py (reads results.csv).
 
@@ -96,6 +108,9 @@ SESSIONS = [1, 2, 3]  # every subject must have exactly these sessions
 BARS = ["zero_shot", "ft_1sess", "ft_2sess"]
 META_COLS = ["Label_int", "Label_str", "session_id", "batch_id"]
 FT_SETTINGS = {"ft_lr": 1e-3, "num_ft_epochs": 50}  # paper Setting III-a
+NORMALIZE_MODES = ["none", "session_oracle", "session_calib"]
+NORM_PERCENTILE = 95.0
+CALIB_BATCH = 1  # session_calib: rest windows of this batch give the statistics
 
 
 # ----------------------------------------------------------------------------
@@ -117,6 +132,32 @@ def load_subject(base_cfg: dict, sub: str, cond: str) -> pd.DataFrame:
     df = df[META_COLS + ch_cols].copy()
     df["subject"] = sub
     return df.reset_index(drop=True)
+
+
+def normalize_sessions(df: pd.DataFrame, mode: str) -> Tuple[pd.DataFrame, List[dict]]:
+    """Divide every channel by its robust amplitude, per session (see module docstring)."""
+    if mode == "none":
+        return df, []
+    ch_cols = [c for c in df.columns if c.startswith("Ch_") and c.endswith("_filt")]
+    scales = []
+    for s, d in df.groupby("session_id", sort=True):
+        if mode == "session_oracle":
+            ref = d
+        else:  # session_calib
+            ref = d[(d["batch_id"] == CALIB_BATCH) & (d["Label_str"] == "rest")]
+            if ref.empty:
+                raise ValueError(f"session {s}: no rest windows in calibration batch {CALIB_BATCH}")
+        row = {"subject": d["subject"].iloc[0], "session_id": int(s), "n_ref_windows": len(ref)}
+        for c in ch_cols:
+            row[c] = float(np.percentile(np.abs(np.stack(ref[c].to_numpy())), NORM_PERCENTILE))
+            if not row[c] > 0:
+                raise ValueError(f"session {s}, {c}: non-positive scale {row[c]}")
+        scales.append(row)
+    by_session = {r["session_id"]: r for r in scales}
+    df = df.copy()
+    for c in ch_cols:
+        df[c] = [w / by_session[int(s)][c] for w, s in zip(df[c], df["session_id"])]
+    return df, scales
 
 
 def downsample_rest(df: pd.DataFrame, seed: int) -> pd.DataFrame:
@@ -167,13 +208,15 @@ def ckpt_info(ckpt_path: Path) -> Dict[str, Optional[int]]:
 
 
 def eval_sessions(
-    mm: Model_Master, df_target: pd.DataFrame, sessions: Sequence[int]
+    mm: Model_Master, df_target: pd.DataFrame, sessions: Sequence[int], exclude_batch: Optional[int] = None
 ) -> Dict[int, Dict[str, float]]:
     """Balanced accuracy of mm.model on each whole target session (rest not downsampled)."""
     cols = mm.data_col_to_consider + ["Label_train"]
     out = {}
     for s in sessions:
         d = df_target[df_target["session_id"] == s]
+        if exclude_batch is not None:
+            d = d[d["batch_id"] != exclude_batch]
         d = mm.apply_label_mapping(d, orig_to_train=mm.orig_to_train)
         loader = mm.trainer_manager.create_dataloader_from_df(d[cols], shuffle=False)
         metrics, _, _ = evaluate_model(mm.model, loader)
@@ -194,7 +237,8 @@ def pool_name(pool: Tuple[str, ...]) -> str:
 # ----------------------------------------------------------------------------
 class SubjectScalingExperiment:
     def __init__(
-        self, base_cfg: dict, model_cfg: dict, cond: str, artifacts_dir: Path, subjects, targets
+        self, base_cfg: dict, model_cfg: dict, cond: str, artifacts_dir: Path, subjects, targets,
+        normalize: str = "none",
     ):
         self.cond = cond
         self.base_cfg = deepcopy(base_cfg)
@@ -211,7 +255,11 @@ class SubjectScalingExperiment:
             raise ValueError(f"targets {sorted(unknown)} are not in the cohort {self.subjects}")
         self.win_ms = int(round(float(self.base_cfg["window"]["window_size_s"]) * 1000))
 
-        self.out_dir = artifacts_dir / "models" / "subject_scaling" / cond / f"w{self.win_ms}ms"
+        if normalize not in NORMALIZE_MODES:
+            raise ValueError(f"normalize must be one of {NORMALIZE_MODES}")
+        self.normalize = normalize
+        experiment = "subject_scaling" if normalize == "none" else f"subject_scaling_norm_{normalize}"
+        self.out_dir = artifacts_dir / "models" / experiment / cond / f"w{self.win_ms}ms"
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.results_path = self.out_dir / "results.csv"
         self.done = set()
@@ -222,7 +270,12 @@ class SubjectScalingExperiment:
             )
             print(f"[RESUME] {len(self.done)} (target, pool, bar, unit) entries already done")
 
-        self.data = {s: load_subject(self.base_cfg, s, cond) for s in self.subjects}
+        self.data, scales = {}, []
+        for s in self.subjects:
+            self.data[s], sc = normalize_sessions(load_subject(self.base_cfg, s, cond), normalize)
+            scales += sc
+        if scales:
+            pd.DataFrame(scales).to_csv(self.out_dir / "normalization_scales.csv", index=False)
         for s, df in self.data.items():
             found = sorted(int(v) for v in df["session_id"].unique())
             if found != SESSIONS:
@@ -233,6 +286,9 @@ class SubjectScalingExperiment:
         cfg = deepcopy(self.base_cfg)
         cfg["data"]["subject_id"] = name
         return cfg
+
+    def _excluded_test_batch(self) -> Optional[int]:
+        return CALIB_BATCH if self.normalize == "session_calib" else None
 
     def _append(self, rows: List[dict]) -> None:
         df = pd.DataFrame(rows)
@@ -254,6 +310,9 @@ class SubjectScalingExperiment:
             "val_size": self.val_size,
             "split_seed": self.seed,
             "ft_settings": FT_SETTINGS,
+            "normalize": self.normalize,
+            "norm_percentile": NORM_PERCENTILE if self.normalize != "none" else None,
+            "calib_batch": CALIB_BATCH if self.normalize == "session_calib" else None,
             "base_cfg": self.base_cfg,
             "model_cfg": self.model_cfg,
             "ft_model_cfg": self.ft_model_cfg,
@@ -293,7 +352,7 @@ class SubjectScalingExperiment:
         # build only for label mapping / model skeleton; no training happens here
         mm = build_master(self._cfg_for(target), self.model_cfg, df_t, pd.DataFrame())
         load_weights(mm, ckpt)
-        scores = eval_sessions(mm, df_t, todo)
+        scores = eval_sessions(mm, df_t, todo, self._excluded_test_batch())
         self._append(
             [
                 self._row(target, pool, "zero_shot", unit=s, train_sessions=[], test_session=s,
@@ -323,7 +382,7 @@ class SubjectScalingExperiment:
         save_path = self.out_dir / "finetune" / target / pname / f"{bar}_train{''.join(map(str, train_sessions))}.pt"
         save_path.parent.mkdir(parents=True, exist_ok=True)
         mm.trainer_manager.fit(save_model_path=save_path)  # restores best-val weights
-        scores = eval_sessions(mm, df_t, test_sessions)
+        scores = eval_sessions(mm, df_t, test_sessions, self._excluded_test_batch())
         info = ckpt_info(save_path)
         self._append(
             [
@@ -394,6 +453,8 @@ def main():
     ap.add_argument("--subjects", nargs="+", default=SUBJECTS, help="Cohort (targets and pool candidates)")
     ap.add_argument("--targets", nargs="+", default=None, help="Subset of --subjects to evaluate (default: all)")
     ap.add_argument("--window_s", type=float, default=1.4)
+    ap.add_argument("--normalize", choices=NORMALIZE_MODES, default="none",
+                    help="Per-session EMG amplitude normalisation (default: none = paper setting)")
     ap.add_argument("--max_epochs", type=int, default=None, help="Debug only: cap all epochs")
     ap.add_argument(
         "--seed",
@@ -421,7 +482,8 @@ def main():
 
     for cond in args.conditions:
         SubjectScalingExperiment(
-            base_cfg, model_cfg, cond, args.artifacts_dir, args.subjects, args.targets or args.subjects
+            base_cfg, model_cfg, cond, args.artifacts_dir, args.subjects, args.targets or args.subjects,
+            normalize=args.normalize,
         ).run()
 
     print("Aggregate with: python utils/III_results_analysis/IV_subject_scaling_analysis.py "

@@ -17,6 +17,7 @@
 #   random_labels        random-label control (inter-session, SpeechNet)
 #   scaling_silent       subject-scaling analysis, silent
 #   scaling_vocalized    subject-scaling analysis, vocalized
+#   cross_modal          cross-modal inference of the inter-session SpeechNet models (needs inter_session_sweep)
 #
 # Outputs: <artifacts_root>/seed_<seed>/{models,tables,figures,logs}
 # Manifest: <artifacts_root>/runs_manifest.csv (start, end, seed, job, git commit, exit code)
@@ -74,6 +75,10 @@ case $JOB in
     scaling_silent | scaling_vocalized)
         $PY offline_experiments/VI_subject_scaling_experiment.py --data_dir "$DATA" --win_and_feats "$WAF" \
             --artifacts_dir "$OUT" --conditions "${JOB#scaling_}" --seed "$SEED"
+        ;;
+    cross_modal)
+        $PY offline_experiments/VII_cross_modal_inference.py --data_dir "$DATA" --win_and_feats "$WAF" \
+            --artifacts_dir "$OUT"
         ;;
     *)
         echo "Unknown job: $JOB"

@@ -11,7 +11,8 @@ Summarize and visualize the subject-scaling experiment
 (offline_experiments/VI_subject_scaling_experiment.py).
 
 Input (one row per test-session score):
-  <ARTIFACTS_DIR>/models/subject_scaling/<condition>/<model_name_id>/results.csv
+  <ARTIFACTS_DIR>/models/<experiment>/<condition>/<model_name_id>/results.csv
+  (<experiment> = subject_scaling, or subject_scaling_norm_<mode> with --normalize)
 
 Aggregation, per condition
   Unit u   session index identifying a data split: the training session for
@@ -22,8 +23,8 @@ Aggregation, per condition
   Step 3   Average: mean +- std of the Step-2 means over the target subjects.
 
 Outputs:
-  <ARTIFACTS_DIR>/tables/subject_scaling_<condition>_<model_name_id>.csv
-  <ARTIFACTS_DIR>/figures/subject_scaling_<condition>_<model_name>_<model_name_id>.pdf (+ .png)
+  <ARTIFACTS_DIR>/tables/<experiment>_<condition>_<model_name_id>.csv
+  <ARTIFACTS_DIR>/figures/<experiment>_<condition>_<model_name>_<model_name_id>.pdf (+ .png)
 
 Figure style follows III_ft_results.py (paper Figs. 7-8): one figure per condition,
 one panel per target subject plus an "Average" panel.
@@ -217,25 +218,30 @@ def main():
         "--subjects", nargs="+", default=None, help="Panels to plot (default: all targets in results)"
     )
     parser.add_argument("--conditions", nargs="+", default=["vocalized", "silent"])
+    parser.add_argument(
+        "--experiment",
+        default="subject_scaling",
+        help="models/<experiment>, e.g. subject_scaling_norm_session_oracle",
+    )
     args = parser.parse_args()
 
     for cond in args.conditions:
         results = (
-            args.artifacts_dir / "models" / "subject_scaling" / cond / args.model_name_id / "results.csv"
+            args.artifacts_dir / "models" / args.experiment / cond / args.model_name_id / "results.csv"
         )
         if not results.exists():
             print(f"[SKIP] no results for {cond}: {results}")
             continue
 
         summary = aggregate(results)
-        table_path = args.artifacts_dir / "tables" / f"subject_scaling_{cond}_{args.model_name_id}.csv"
+        table_path = args.artifacts_dir / "tables" / f"{args.experiment}_{cond}_{args.model_name_id}.csv"
         table_path.parent.mkdir(parents=True, exist_ok=True)
         summary.to_csv(table_path, index=False)
 
         fig_path = (
             args.artifacts_dir
             / "figures"
-            / f"subject_scaling_{cond}_{args.model_name}_{args.model_name_id}.pdf"
+            / f"{args.experiment}_{cond}_{args.model_name}_{args.model_name_id}.pdf"
         )
         subjects = args.subjects or sorted(t for t in summary["target"].unique() if t != "Average")
         plot_subjs_and_avg(summary, subjects, fig_path)
