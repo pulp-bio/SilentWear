@@ -193,7 +193,8 @@ class Global_Model_Trainer:
 
     def run_cv(self) -> List[Dict[str, Any]]:
         cv_cfg = self.base_config.get("cv", {})
-        mode = cv_cfg.get("mode")
+        # paper_models_config.yaml uses "global_cv_mode"; keep "mode" for backward compatibility
+        mode = cv_cfg.get("global_cv_mode", cv_cfg.get("mode"))
         val_size = float(cv_cfg.get("val_size", 0.3))
         seed = int(self.base_config["experiment"]["seed"])
         print("========================================\n\n")
