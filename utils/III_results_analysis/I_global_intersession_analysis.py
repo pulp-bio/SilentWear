@@ -270,7 +270,12 @@ def main():
         default=None,
         help="Root artifacts folder (default: env SILENTWEAR_ARTIFACTS_DIR or ./artifacts)",
     )
-    ap.add_argument("--experiment", type=str, choices=["global", "inter_session"], required=True)
+    ap.add_argument(
+        "--experiment",
+        type=str,
+        choices=["global", "inter_session", "inter_session_random_labels"],
+        required=True,
+    )
 
     ap.add_argument("--subjects", nargs="+", default=["S01", "S02", "S03", "S04"])
     ap.add_argument("--conditions", nargs="+", default=["silent", "vocalized"])
