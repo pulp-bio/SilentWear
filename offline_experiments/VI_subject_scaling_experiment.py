@@ -15,10 +15,11 @@ Question
     both zero-shot and after fine-tuning on one or two of its sessions?
 
 Definitions
-    Target subject T    the subject being evaluated (S01..S04, leave-one-subject-out).
-    Pool P              the set of subjects used for pre-training, P ⊆ {S01..S04} \\ {T}.
-    x = |P|             number of pre-training subjects, x ∈ {0, 1, 2, 3}.
-    N(x)                number of pools of size x per target: C(3, x) = 1, 3, 3, 1.
+    Cohort              the n subjects of the study (--subjects; default S01..S04, n = 4).
+    Target subject T    the subject being evaluated (leave-one-subject-out).
+    Pool P              the set of subjects used for pre-training, P ⊆ cohort \\ {T}.
+    x = |P|             number of pre-training subjects, x ∈ {0, 1, ..., n-1}.
+    N(x)                number of pools of size x per target: C(n-1, x); for n = 4: 1, 3, 3, 1.
     
                         x	C(3, x)	Pools
                         0	1	    { } (empty: no pre-training)
@@ -32,9 +33,9 @@ Pre-training (x >= 1)
     size of the smallest word class, separately for each subject. Train/val split:
     stratified by label, val_size from the config (0.2). Training: base config
     (100 epochs, early stopping on the validation loss).
-    Only the 14 distinct non-empty pools with |P| <= 3 are trained (4 + 6 + 4);
-    a pool is reused for every target subject not contained in it, which covers all
-    4 x 7 = 28 (target, pool) pairs.
+    Only the 2^n - 2 distinct pools (non-empty, not the whole cohort) are trained;
+    a pool is reused for every target subject not contained in it. For n = 4:
+    14 pools (4 + 6 + 4) cover all 4 x 7 = 28 (target, pool) pairs.
 
 Evaluated settings ("bars")
     Every score is the balanced accuracy on one complete held-out session of subject T
@@ -90,8 +91,8 @@ from models.seeds import configure_seed, get_seed_info
 from models.TorchTrainer import evaluate_model
 from utils.general_utils import load_all_h5files_from_folder
 
-SUBJECTS = ["S01", "S02", "S03", "S04"]
-SESSIONS = [1, 2, 3]
+SUBJECTS = ["S01", "S02", "S03", "S04"]  # default cohort (--subjects)
+SESSIONS = [1, 2, 3]  # every subject must have exactly these sessions
 BARS = ["zero_shot", "ft_1sess", "ft_2sess"]
 META_COLS = ["Label_int", "Label_str", "session_id", "batch_id"]
 FT_SETTINGS = {"ft_lr": 1e-3, "num_ft_epochs": 50}  # paper Setting III-a
@@ -192,7 +193,9 @@ def pool_name(pool: Tuple[str, ...]) -> str:
 # Experiment
 # ----------------------------------------------------------------------------
 class SubjectScalingExperiment:
-    def __init__(self, base_cfg: dict, model_cfg: dict, cond: str, artifacts_dir: Path, targets):
+    def __init__(
+        self, base_cfg: dict, model_cfg: dict, cond: str, artifacts_dir: Path, subjects, targets
+    ):
         self.cond = cond
         self.base_cfg = deepcopy(base_cfg)
         self.base_cfg["condition"] = cond
@@ -201,7 +204,11 @@ class SubjectScalingExperiment:
         self.ft_model_cfg = build_ft_model_cfg(model_cfg, FT_SETTINGS)
         self.seed = int(self.base_cfg["experiment"]["seed"])
         self.val_size = float(self.base_cfg["cv"]["val_size"])
+        self.subjects = list(subjects)
         self.targets = list(targets)
+        unknown = set(self.targets) - set(self.subjects)
+        if unknown:
+            raise ValueError(f"targets {sorted(unknown)} are not in the cohort {self.subjects}")
         self.win_ms = int(round(float(self.base_cfg["window"]["window_size_s"]) * 1000))
 
         self.out_dir = artifacts_dir / "models" / "subject_scaling" / cond / f"w{self.win_ms}ms"
@@ -215,7 +222,11 @@ class SubjectScalingExperiment:
             )
             print(f"[RESUME] {len(self.done)} (target, pool, bar, unit) entries already done")
 
-        self.data = {s: load_subject(self.base_cfg, s, cond) for s in SUBJECTS}
+        self.data = {s: load_subject(self.base_cfg, s, cond) for s in self.subjects}
+        for s, df in self.data.items():
+            found = sorted(int(v) for v in df["session_id"].unique())
+            if found != SESSIONS:
+                raise ValueError(f"{s}: sessions {found}, expected {SESSIONS}")
 
     # -- bookkeeping --------------------------------------------------------
     def _cfg_for(self, name: str) -> dict:
@@ -238,6 +249,7 @@ class SubjectScalingExperiment:
             "experiment_type": "subject_scaling",
             "condition": self.cond,
             "window_size_ms": self.win_ms,
+            "subjects": self.subjects,
             "targets": self.targets,
             "val_size": self.val_size,
             "split_seed": self.seed,
@@ -345,19 +357,23 @@ class SubjectScalingExperiment:
     def run(self) -> None:
         self.save_run_cfg()
         # pools build the possible combinations of pre-training subjects 
-        pools = [p for k in (1, 2, 3) for p in combinations(SUBJECTS, k)]
+        # all non-empty proper subsets of the cohort (a pool cannot contain every subject)
+        pools = [p for k in range(1, len(self.subjects)) for p in combinations(self.subjects, k)]
         needed = [p for p in pools if any(t not in p for t in self.targets)]
         # Pre-training the needed models for all pools  
         ckpts = {p: self.pretrain(p) for p in needed}
 
         for target in self.targets:
-            others = [s for s in SUBJECTS if s != target]
-            for x in (0, 1, 2, 3):
+            others = [s for s in self.subjects if s != target]
+            for x in range(len(others) + 1):
                 pools_x = [()] if x == 0 else list(combinations(others, x))
                 for pool in pools_x:
                     ckpt = ckpts[pool] if pool else None
+
+                    # Zero-shot evaluation on the current pre-traine model
                     if ckpt is not None:
                         self.zero_shot(target, pool, ckpt)
+                    # now fine-tune on the target's subject sessions
                     for bar in ("ft_1sess", "ft_2sess"):
                         for unit in SESSIONS:
                             self.finetune(target, pool, ckpt, bar, unit)
@@ -375,7 +391,8 @@ def main():
     ap.add_argument("--win_and_feats", type=str, default=None, help="Override paths.win_and_feats")
     ap.add_argument("--artifacts_dir", type=Path, default=Path("./artifacts_rebuttal"))
     ap.add_argument("--conditions", nargs="+", default=["silent", "vocalized"])
-    ap.add_argument("--targets", nargs="+", default=SUBJECTS)
+    ap.add_argument("--subjects", nargs="+", default=SUBJECTS, help="Cohort (targets and pool candidates)")
+    ap.add_argument("--targets", nargs="+", default=None, help="Subset of --subjects to evaluate (default: all)")
     ap.add_argument("--window_s", type=float, default=1.4)
     ap.add_argument("--max_epochs", type=int, default=None, help="Debug only: cap all epochs")
     ap.add_argument(
@@ -403,7 +420,9 @@ def main():
         FT_SETTINGS["num_ft_epochs"] = args.max_epochs
 
     for cond in args.conditions:
-        SubjectScalingExperiment(base_cfg, model_cfg, cond, args.artifacts_dir, args.targets).run()
+        SubjectScalingExperiment(
+            base_cfg, model_cfg, cond, args.artifacts_dir, args.subjects, args.targets or args.subjects
+        ).run()
 
     print("Aggregate with: python utils/III_results_analysis/IV_subject_scaling_analysis.py "
           f"--artifacts_dir {args.artifacts_dir}")

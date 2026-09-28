@@ -57,7 +57,6 @@ BAR_LABELS = {
     "ft_2sess": "2 target sessions",
 }
 BAR_COLORS = {"zero_shot": "blue", "ft_1sess": "green", "ft_2sess": "orange"}
-N_PRETRAIN = [0, 1, 2, 3]
 
 
 # ------------------------- aggregation -------------------------
@@ -102,12 +101,13 @@ def aggregate(results_path: Path) -> pd.DataFrame:
 def plot_subjs_and_avg(summary: pd.DataFrame, subjects, save_path: Path) -> None:
     """1 x (Nsubjects+1) grouped-bar layout, styled as III_ft_results.plot_subjs_and_avgs."""
     panels = list(subjects) + ["Average"]
+    n_pretrain = sorted(int(k) for k in summary["n_pretrain_subjects"].unique())  # 0..n-1
     ncols = len(panels)
     fig, axes = plt.subplots(1, ncols, figsize=(40, 8), sharex=True, sharey=True)
     axes = np.array(axes).reshape(-1)
 
     fs_ax, fs_label, fs_tick, fs_leg = 30, 30, 30, 30
-    x = np.arange(len(N_PRETRAIN))
+    x = np.arange(len(n_pretrain))
     width = 0.26
 
     for i, (ax, panel) in enumerate(zip(axes, panels)):
@@ -118,8 +118,8 @@ def plot_subjs_and_avg(summary: pd.DataFrame, subjects, save_path: Path) -> None
         d = summary[summary["target"] == panel]
         for b, bar in enumerate(BARS):
             db = d[d["bar"] == bar].set_index("n_pretrain_subjects")
-            mean = np.array([db["mean"].get(k, np.nan) for k in N_PRETRAIN]) * 100
-            std = np.array([db["std"].get(k, np.nan) for k in N_PRETRAIN]) * 100
+            mean = np.array([db["mean"].get(k, np.nan) for k in n_pretrain]) * 100
+            std = np.array([db["std"].get(k, np.nan) for k in n_pretrain]) * 100
             pos = x + (b - 1) * width
             ax.bar(pos, mean, width=width, color=BAR_COLORS[bar], zorder=2)
             ax.errorbar(
@@ -138,8 +138,8 @@ def plot_subjs_and_avg(summary: pd.DataFrame, subjects, save_path: Path) -> None
         ax.set_ylim(0, 100)
         ax.set_yticks(np.arange(0, 101, 10))
         ax.set_xticks(x)
-        ax.set_xticklabels([str(k) for k in N_PRETRAIN])
-        ax.set_xlim(-0.6, len(N_PRETRAIN) - 0.4)
+        ax.set_xticklabels([str(k) for k in n_pretrain])
+        ax.set_xlim(-0.6, len(n_pretrain) - 0.4)
         ax.tick_params(axis="both", labelsize=fs_tick)
 
     # --- legend ---
@@ -213,7 +213,9 @@ def main():
     )
     parser.add_argument("--model_name", type=str, default="speechnet")
     parser.add_argument("--model_name_id", type=str, default="w1400ms")
-    parser.add_argument("--subjects", nargs="+", default=["S01", "S02", "S03", "S04"])
+    parser.add_argument(
+        "--subjects", nargs="+", default=None, help="Panels to plot (default: all targets in results)"
+    )
     parser.add_argument("--conditions", nargs="+", default=["vocalized", "silent"])
     args = parser.parse_args()
 
@@ -235,7 +237,8 @@ def main():
             / "figures"
             / f"subject_scaling_{cond}_{args.model_name}_{args.model_name_id}.pdf"
         )
-        plot_subjs_and_avg(summary, args.subjects, fig_path)
+        subjects = args.subjects or sorted(t for t in summary["target"].unique() if t != "Average")
+        plot_subjs_and_avg(summary, subjects, fig_path)
 
         print(f"\n=== {cond} ===")
         print(
