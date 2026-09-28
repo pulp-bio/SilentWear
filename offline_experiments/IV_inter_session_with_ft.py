@@ -277,7 +277,7 @@ def run_ft_for(
                 df_batch,
                 test_size=0.3,
                 shuffle=True,
-                random_state=42,
+                random_state=int(base_cfg_used["experiment"]["seed"]),
                 stratify=df_batch["Label_int"],
             )
 

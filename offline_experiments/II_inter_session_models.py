@@ -40,7 +40,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from offline_experiments.Model_Master import Model_Master
-from models.seeds import RGN_SEED, TORCH_MANUAL_SEED, RANDOM_SEED
+from models.seeds import get_seed_info
 from utils.general_utils import load_all_h5files_from_folder, print_dataset_summary_statistics
 
 
@@ -199,11 +199,7 @@ class Inter_Session_Model_Trainer:
             "subject": self.sub_id,
             "model_cfg": self.model_config,
             "base_cfg": self.base_config,
-            "seeds": {
-                "torch_manual_seed": TORCH_MANUAL_SEED,
-                "random_seed": RANDOM_SEED,
-                "rgn_seed": RGN_SEED,
-            },
+            "seeds": get_seed_info(),
         }
 
         with open(self.model_dire / "run_cfg.json", "w") as f:

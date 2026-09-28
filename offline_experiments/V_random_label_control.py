@@ -46,6 +46,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from offline_experiments.II_inter_session_models import Inter_Session_Model_Trainer
+from models.seeds import configure_seed
 
 LABEL_COLS = ["Label_int", "Label_str"]
 
@@ -129,6 +130,13 @@ def main():
     )
     ap.add_argument("--subjects", nargs="+", default=["S01", "S02", "S03", "S04"])
     ap.add_argument("--conditions", nargs="+", default=["silent", "vocalized"])
+    ap.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Run seed (e.g. 42, 52, 62); also used as label permutation seed. "
+        "Default: values of the base config",
+    )
     args = ap.parse_args()
 
     base_cfg = yaml.safe_load(args.base_config.read_text())
@@ -137,6 +145,10 @@ def main():
     base_cfg["data"]["models_main_directory"] = str(args.artifacts_dir)
     if args.win_and_feats is not None:
         base_cfg["paths"]["win_and_feats"] = args.win_and_feats
+    if args.seed is not None:
+        base_cfg["experiment"]["seed"] = args.seed
+        base_cfg["experiment"]["label_permutation_seed"] = args.seed
+    configure_seed(base_cfg["experiment"]["seed"])
 
     for sub in args.subjects:
         for cond in args.conditions:

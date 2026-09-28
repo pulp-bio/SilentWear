@@ -25,6 +25,7 @@ import random
 import numpy as np
 import torch
 
+DEFAULT_SEED = 42
 PD_SAMPLE_SEED = 42  # 42, 52, 62
 TORCH_MANUAL_SEED = 42  # 42, 52, 62
 RANDOM_SEED = 0  # 0,  10, 20
@@ -34,6 +35,36 @@ if torch.cuda.is_available():
     print(os.environ.get("CUDA_VISIBLE_DEVICES"))
     print("Cuda is available")
 torch.use_deterministic_algorithms(True)
+
+
+def configure_seed(seed: int) -> None:
+    """
+    Derive all seeds from one run seed (42, 52, 62, ...).
+
+    seed=42 reproduces the original constants (torch 42, numpy/python 0).
+    Must be called before any model is built; set_seeds() then uses these values.
+    """
+    global PD_SAMPLE_SEED, TORCH_MANUAL_SEED, RANDOM_SEED, RGN_SEED, rng
+    seed = int(seed)
+    PD_SAMPLE_SEED = seed
+    TORCH_MANUAL_SEED = seed
+    RANDOM_SEED = seed - DEFAULT_SEED
+    if RANDOM_SEED < 0:
+        raise ValueError(f"seed must be >= {DEFAULT_SEED} (got {seed})")
+    RGN_SEED = seed
+    rng = np.random.default_rng(RGN_SEED)
+    set_seeds()
+    print(f"SEEDS CONFIGURED: run seed {seed} -> {get_seed_info()}")
+
+
+def get_seed_info() -> dict:
+    """Seeds currently in use (for run_cfg.json)."""
+    return {
+        "pd_sample_seed": PD_SAMPLE_SEED,
+        "torch_manual_seed": TORCH_MANUAL_SEED,
+        "random_seed": RANDOM_SEED,
+        "rgn_seed": RGN_SEED,
+    }
 
 
 def set_seeds() -> None:

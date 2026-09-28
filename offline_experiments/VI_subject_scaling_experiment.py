@@ -70,7 +70,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from offline_experiments.IV_inter_session_with_ft import build_ft_model_cfg
 from offline_experiments.Model_Master import Model_Master
-from models.seeds import RANDOM_SEED, RGN_SEED, TORCH_MANUAL_SEED
+from models.seeds import configure_seed, get_seed_info
 from models.TorchTrainer import evaluate_model
 from utils.general_utils import load_all_h5files_from_folder
 
@@ -228,11 +228,7 @@ class SubjectScalingExperiment:
             "base_cfg": self.base_cfg,
             "model_cfg": self.model_cfg,
             "ft_model_cfg": self.ft_model_cfg,
-            "seeds": {
-                "torch_manual_seed": TORCH_MANUAL_SEED,
-                "random_seed": RANDOM_SEED,
-                "rgn_seed": RGN_SEED,
-            },
+            "seeds": get_seed_info(),
             "git_commit": commit,
         }
         with open(self.out_dir / "run_cfg.json", "w") as f:
@@ -463,6 +459,12 @@ def main():
     ap.add_argument("--window_s", type=float, default=1.4)
     ap.add_argument("--max_epochs", type=int, default=None, help="Debug only: cap all epochs")
     ap.add_argument("--aggregate", action="store_true", help="Only aggregate existing results")
+    ap.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Run seed (e.g. 42, 52, 62). Default: experiment.seed of the base config",
+    )
     args = ap.parse_args()
 
     if not args.aggregate:
@@ -475,6 +477,9 @@ def main():
         base_cfg["window"]["window_size_s"] = float(args.window_s)
         if args.win_and_feats is not None:
             base_cfg["paths"]["win_and_feats"] = args.win_and_feats
+        if args.seed is not None:
+            base_cfg["experiment"]["seed"] = args.seed
+        configure_seed(base_cfg["experiment"]["seed"])
         if args.max_epochs is not None:
             model_cfg["model"]["kwargs"]["train_cfg"]["num_epochs"] = args.max_epochs
             FT_SETTINGS["num_ft_epochs"] = args.max_epochs
