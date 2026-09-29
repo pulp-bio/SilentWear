@@ -223,6 +223,74 @@ If you ran the inter session models multiple times, change the inter_session_mod
 
 Note: Small performance variations may occur due to randomness but remain within the reported standard deviation.
 
+## 🎲 Running with Multiple Seeds
+
+All experiments can be repeated with different random seeds, and the results pooled across seeds.
+
+### What the seed controls
+
+A single run seed `s` (`--seed s`) sets every source of randomness of a run; the test sets are fixed by the evaluation protocol and do not depend on it:
+
+| Random element | Value |
+| --- | --- |
+| Model initialisation, dropout, batch order (PyTorch) | `s` |
+| NumPy / Python `random` | `s - 42` |
+| Rest-class downsampling, train/validation split | `s` |
+| Random Forest `random_state` | `s - 42` |
+| Label permutation (random-label control) | `s` |
+
+`s = 42` (the default) reproduces the single-seed setup. Seeds are reset before every model is built and data files are loaded in sorted order, so a result does not depend on which other experiments ran before it in the same process. The seeds actually used are stored in every `run_cfg.json`.
+
+`--seed` is available in `reproduce_paper_scripts/30_run_experiments.py` and `offline_experiments/VI_subject_scaling_experiment.py`. Use one artifacts folder per seed, e.g.:
+
+```bash
+python reproduce_paper_scripts/30_run_experiments.py --base_config config/paper_models_config.yaml --model_config config/models_configs/speechnet_config.yaml --data_dir ./data --artifacts_dir ./artifacts/seed_52 --experiment global --seed 52
+```
+
+### Run all experiments for one seed
+
+`40_run_seed_job.sh` runs one group of experiments for one seed into `<artifacts_root>/seed_<s>/` and logs it:
+
+```bash
+bash reproduce_paper_scripts/40_run_seed_job.sh <seed> <job> <data_dir> <win_and_feats> <artifacts_root>
+# e.g.
+bash reproduce_paper_scripts/40_run_seed_job.sh 52 global_and_rf ./data wins_and_features ./artifacts
+```
+
+| Job | Experiments |
+| --- | --- |
+| `global_and_rf` | Global SpeechNet, Global Random Forest, Inter-Session Random Forest (1400 ms) |
+| `inter_session_sweep` | Inter-Session SpeechNet, windows 0.4–1.4 s |
+| `ft_and_tfs` | Inter-Session Fine Tuning + Training From Scratch (800 and 1400 ms) |
+| `scaling_silent`, `scaling_vocalized` | Subject-scaling analysis (pre-training on 0–3 other subjects, then zero-shot or fine-tuning on 1–2 sessions of the target subject) |
+
+`<win_and_feats>` is the name of the windows folder inside `<data_dir>` (`wins_and_features` for the released dataset). Each job appends a row (start, end, seed, job, git commit, exit code, log) to `<artifacts_root>/runs_manifest.csv`. Jobs are independent and can run in parallel, also on different GPUs (`CUDA_VISIBLE_DEVICES`).
+
+Resulting layout:
+
+```
+<artifacts_root>/
+├── seed_42/  {models, tables, figures, logs}
+├── seed_52/  ...
+├── seed_62/  ...
+├── seeds_pooled/  {models, tables, figures, seed_spread}   (after pooling)
+└── runs_manifest.csv
+```
+
+### Pool seeds and generate results
+
+```bash
+bash reproduce_paper_scripts/50_analyze_seeds.sh ./artifacts 42 52 62
+```
+
+This script
+
+1. **pools** the seeds with `utils/III_results_analysis/00_pool_seeds.py` into `seeds_pooled/models/`, a tree with the same layout as a single-seed run: every per-fold (or per-session, per-batch) value is the mean over seeds of the same fold. Confusion matrices are averaged element-wise; since the test set of a fold is identical across seeds, this equals normalising the summed counts. Per-window predictions are not pooled. Pooling fails if a run is missing for any seed or if the test folds differ;
+2. **analyses** every `seed_<s>/` and `seeds_pooled/` with the scripts of step 3️⃣ (plus `IV_subject_scaling_analysis.py` and `V_confusion_matrix_figure.py`, which assembles all SpeechNet confusion matrices into the single paper figure `figures/speechnet_w1400ms_cm_global_inter_session.svg`), producing the usual `tables/` and `figures/`;
+3. computes the **seed spread**: `seeds_pooled/seed_spread/<table>.csv` contains, for every table, the mean and standard deviation *across seeds* of each reported value.
+
+In the pooled tables and figures, standard deviations keep the meaning of the single-seed results (across folds or sessions for each subject, across subjects for the average); the variability due to the seed is reported separately in `seed_spread/`.
+
 ## Run minimal experiments.
 
 The `reproduce_paper_scripts` folder is built around the standalone scripts contained in:

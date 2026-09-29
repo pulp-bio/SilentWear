@@ -73,6 +73,7 @@ from offline_experiments.I_global_models import Global_Model_Trainer
 from offline_experiments.II_inter_session_models import Inter_Session_Model_Trainer
 from offline_experiments.III_train_from_scratch import TrainFromScratch_Model_Trainer
 from offline_experiments.IV_inter_session_with_ft import FineTuning_Model_Trainer
+from models.seeds import configure_seed
 
 
 def _apply_open_release_overrides(base_cfg: dict, data_dir: Path, artifacts_dir: Path) -> dict:
@@ -208,6 +209,12 @@ def main():
     ap.add_argument("--model_config", type=Path, required=True)
     ap.add_argument("--data_dir", type=Path, required=True)
     ap.add_argument("--artifacts_dir", type=Path, default=Path("./artifacts"))
+    ap.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Run seed (e.g. 42, 52, 62). Default: experiment.seed of the base config",
+    )
 
     ap.add_argument(
         "--experiment",
@@ -253,6 +260,10 @@ def main():
     base_cfg = yaml.safe_load(args.base_config.read_text())
     model_cfg = yaml.safe_load(args.model_config.read_text())
     base_cfg = _apply_open_release_overrides(base_cfg, args.data_dir, args.artifacts_dir)
+
+    seed = int(args.seed if args.seed is not None else base_cfg["experiment"]["seed"])
+    base_cfg["experiment"]["seed"] = seed  # splits and rest downsampling
+    configure_seed(seed)  # model init, dropout, numpy, random forest
 
     ft_cfg = None
     if "inter_session_ft" in args.experiment:

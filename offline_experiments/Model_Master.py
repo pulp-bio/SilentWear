@@ -22,6 +22,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 from utils.I_data_preparation.experimental_config import ORIGINAL_LABELS, FS
 from models.models_factory import ModelSpec, build_model_from_spec
+from models.seeds import set_seeds
 from models.SklearnTrainer import *
 from models.TorchTrainer import *
 import re
@@ -311,6 +312,8 @@ class Model_Master:
             "num_classes": self.num_classes,
         }
 
+        # Reset RNGs so results do not depend on models trained earlier in this process
+        set_seeds()
         self.model = build_model_from_spec(spec, ctx)
 
         # move to device only for DL models

@@ -186,10 +186,14 @@ def build_model_from_spec(spec: ModelSpec, ctx: Dict[str, Any]) -> Union[nn.Modu
 
 @register_ml_model("random_forest")
 def random_forest_factory(
-    random_state: int = 0,
+    random_state: Optional[int] = None,
     **kwargs,
 ):
     from sklearn.ensemble import RandomForestClassifier
+    from models import seeds
+
+    if random_state is None:
+        random_state = seeds.RANDOM_SEED  # 0 for run seed 42 (original value)
 
     default = dict(
         n_estimators=100,
