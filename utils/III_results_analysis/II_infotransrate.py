@@ -19,6 +19,9 @@ Artifact dir layout
 
 Outputs:
   <ARTIFACTS_DIR>/figures/itr_<model_name>_<condition>_<windows_tag>.pdf
+  <ARTIFACTS_DIR>/tables/itr_summary_<model_name>_<condition>_<windows_tag>.csv
+    (subject-averaged accuracy and ITR per window, accuracy drop vs. the best window
+     in percentage points and relative %)
 """
 
 from __future__ import annotations
@@ -511,11 +514,26 @@ def main():
         print(f"Best avg Accuracy: {best_acc:.2f}% at window={w_best_acc} ms")
         print(f"Best avg ITR:      {np.max(avg_itr):.2f} bit/min at window={w_best_itr} ms")
 
-        # Find also variations at best itr
-        acc_at_best_itr = avg_acc[int(np.argmax(avg_itr))]
-        print(f"Accuracy at best ITR:      {acc_at_best_itr:.2f}%")
-        reduction = (((best_acc - acc_at_best_itr) / best_acc)) * 100
-        print(f"Accuracy reduction:        {reduction:.2f}%")
+        # Accuracy drop of every window w.r.t. the best-accuracy window:
+        #   drop_pp  = best - acc           (percentage points)
+        #   drop_rel = (best - acc) / best  (relative, %)
+        summary = pd.DataFrame(
+            {
+                "condition": cond,
+                "win_size_ms": unique_windows,
+                "avg_acc": avg_acc,
+                "avg_itr": avg_itr,
+                "acc_drop_pp": best_acc - avg_acc,
+                "acc_drop_rel_perc": (best_acc - avg_acc) / best_acc * 100,
+            }
+        )
+        print(summary.round(2).to_string(index=False))
+
+        tables_dir = artifacts_dir / "tables"
+        tables_dir.mkdir(parents=True, exist_ok=True)
+        out_csv = tables_dir / f"itr_summary_{args.model_name}_{cond}_{windows_tag}.csv"
+        summary.to_csv(out_csv, index=False)
+        print(f"[SAVED] {out_csv}")
 
 
 if __name__ == "__main__":
