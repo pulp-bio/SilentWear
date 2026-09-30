@@ -91,6 +91,8 @@ data/models/
 # ============================
 artifacts
 artifacts_rebuttal
+artifacts_rebuttal_v2
+artifacts_full_rerun
 # Silent wear env
 silent_wear
 silent_wear_os

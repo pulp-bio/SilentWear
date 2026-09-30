@@ -18,6 +18,7 @@
 #   scaling_silent       subject-scaling analysis, silent
 #   scaling_vocalized    subject-scaling analysis, vocalized
 #   scaling_joint_silent subject scaling, silent target, pre-training on silent + vocalized
+#   joint_inter_session  inter-session SpeechNet trained on silent + vocalized, scored per mode
 #   cross_modal          cross-modal inference of the inter-session SpeechNet models (needs inter_session_sweep)
 #
 # Outputs: <artifacts_root>/seed_<seed>/{models,tables,figures,logs}
@@ -80,6 +81,10 @@ case $JOB in
     scaling_joint_silent)
         $PY offline_experiments/VI_subject_scaling_experiment.py --data_dir "$DATA" --win_and_feats "$WAF" \
             --artifacts_dir "$OUT" --conditions silent --joint_pretraining --seed "$SEED"
+        ;;
+    joint_inter_session)
+        $PY offline_experiments/VIII_joint_modality_inter_session.py --data_dir "$DATA" --win_and_feats "$WAF" \
+            --artifacts_dir "$OUT" --seed "$SEED"
         ;;
     cross_modal)
         $PY offline_experiments/VII_cross_modal_inference.py --data_dir "$DATA" --win_and_feats "$WAF" \

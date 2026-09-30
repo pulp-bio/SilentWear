@@ -273,7 +273,7 @@ def main():
     ap.add_argument(
         "--experiment",
         type=str,
-        choices=["global", "inter_session", "inter_session_random_labels", "inter_session_cross_modal"],
+        choices=["global", "inter_session", "inter_session_random_labels", "inter_session_cross_modal", "inter_session_joint"],
         required=True,
     )
 
