@@ -294,6 +294,29 @@ This script
 
 In the pooled tables and figures, standard deviations keep the meaning of the single-seed results (across folds or sessions for each subject, across subjects for the average); the variability due to the seed is reported separately in `seed_spread/`.
 
+### Pool a single experiment
+
+Pooling does not require the full set of jobs: `00_pool_seeds.py` pools whatever the seed folders contain (every result must exist for all seeds). For example, to obtain the 3-seed average of the Inter-Session models only:
+
+```bash
+# 1. run the job for every seed into a dedicated root
+for s in 42 52 62; do
+    bash reproduce_paper_scripts/40_run_seed_job.sh $s inter_session_sweep ./data wins_and_features ./artifacts_inter
+done
+
+# 2. pool the seeds
+python utils/III_results_analysis/00_pool_seeds.py \
+    --seed_dirs ./artifacts_inter/seed_42 ./artifacts_inter/seed_52 ./artifacts_inter/seed_62 \
+    --out_dir ./artifacts_inter/seeds_pooled
+
+# 3. analyse the pooled results
+python utils/III_results_analysis/I_global_intersession_analysis.py \
+    --artifacts_dir ./artifacts_inter/seeds_pooled --experiment inter_session \
+    --model_name speechnet --model_name_id w1400ms
+```
+
+For a single seed no pooling is needed: run the analysis script directly on `./artifacts_inter/seed_42`. Always write new runs into a new folder: running again into an existing one adds a new `model_<k>` next to the previous run, and the analysis scripts read the latest one.
+
 ## Run minimal experiments.
 
 The `reproduce_paper_scripts` folder is built around the standalone scripts contained in:
