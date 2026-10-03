@@ -39,12 +39,12 @@ System overview: https://ieeexplore.ieee.org/abstract/document/11330464 (arXiv: 
 Version used in this work: https://github.com/pulp-bio/biogui/tree/sensors_speech
 
 📝 **This repository**
-This repository contains the source code used to preprocess EMG data and develop models that predict _8 HMI_ commands from _vocalized_ and _silent_ EMG, in line with the associated paper (arXiv: coming soon).
+This repository contains the source code used to preprocess EMG data and develop models that predict _8 HMI_ commands from _vocalized_ and _silent_ EMG, in line with the associated paper (arXiv: https://arxiv.org/abs/2603.02847).
 
 Specifically, it allows you to:
 
 1. **Preprocess EMG data** and prepare it for model training using our publicly available dataset: https://huggingface.co/datasets/PulpBio/SilentWear
-2. **Replicate the results** reported in the paper (arXiv: coming soon). See details below.
+2. **Replicate the results** reported in the paper (arXiv: https://arxiv.org/abs/2603.02847). See details below.
 3. **Extend the pipeline** with your own models (instructions below).
 
 ## 🛠 Get Started: Environment Setup
@@ -97,7 +97,7 @@ If you want to collect your own data using the [BioGUI](https://github.com/pulp-
 
 ## 📊 Reproduce Paper Results
 
-The `reproduce_paper_scripts` folder allows to reproduce the results of the paper: (arXiv: coming soon) . </br>
+The `reproduce_paper_scripts` folder allows to reproduce the results of the paper (arXiv: https://arxiv.org/abs/2603.02847). </br>
 
 ### 1️⃣: Prepare EMG-windows and (optionally) features
 
